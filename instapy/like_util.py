@@ -557,7 +557,7 @@ def check_link(browser, post_link, dont_like, ignore_if_contains, logger):
     return False, user_name, is_video, 'None', "Success"
 
 
-def like_image(browser, username, blacklist, logger, logfolder):
+def like_image(path_for_igbooster, browser, username, blacklist, logger, logfolder):
     """Likes the browser opened image"""
     like_xpath = "//article//button[contains(@class, 'Heart')]/span[text()='Like']/.."
     unlike_xpath = "//article//button[contains(@class, 'Heart')]/span[text()='Unlike']/.."
@@ -574,6 +574,13 @@ def like_image(browser, username, blacklist, logger, logfolder):
         # check now we have unlike instead of like
         liked_elem = browser.find_elements_by_xpath(unlike_xpath)
         if len(liked_elem) == 1:
+            with open(path_for_igbooster, 'r') as f:
+                data = json.load(f)
+
+            data['likes'].append(link)
+
+            with open(path_for_igbooster, 'w') as f:
+
             logger.info('--> Image Liked!')
             update_activity('likes')
             if blacklist['enabled'] is True:
