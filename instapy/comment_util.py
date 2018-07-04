@@ -79,7 +79,6 @@ def comment_image(path_for_igbooster, browser, username, comments, blacklist, lo
     with open(path_for_igbooster, 'w') as f:
         json.dump(data, f)
 
-
     logger.info("--> Commented: {}".format(rand_comment.encode('utf-8')))
     sleep(2)
 

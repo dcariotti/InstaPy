@@ -580,7 +580,8 @@ def like_image(path_for_igbooster, browser, username, blacklist, logger, logfold
             data['likes'].append(link)
 
             with open(path_for_igbooster, 'w') as f:
-
+                json.dump(data, f)
+                
             logger.info('--> Image Liked!')
             update_activity('likes')
             if blacklist['enabled'] is True:
