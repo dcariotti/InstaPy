@@ -609,6 +609,6 @@ def highlight_print(username=None, message=None, priority=None, level=None, logg
     elif level == "critical":
         logger.critical(message)
 
-    print("{}".format(lower_char*output_len))
+    #print("{}".format(lower_char*output_len))
 
 
