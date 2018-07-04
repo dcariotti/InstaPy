@@ -91,14 +91,15 @@ def validate_username(browser,
         float("{0:.2f}".format(relationship_ratio)) if relationship_ratio else 'unknown'))
 
         if followers_count  or following_count:
-            if potency_ratio and not delimit_by_numbers:
-                if relationship_ratio and relationship_ratio < potency_ratio:
-                        return False, \
-                            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
-                            username, "potential user" if not reverse_relationship else "massive follower",
-                            float("{0:.2f}".format(relationship_ratio)))
+            #removed relation_ship ratio
+            #if potency_ratio and not delimit_by_numbers:
+            #    if relationship_ratio and relationship_ratio < potency_ratio:
+            #            return False, \
+            #                "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
+            #                username, "potential user" if not reverse_relationship else "massive follower",
+            #                float("{0:.2f}".format(relationship_ratio)))
 
-            elif delimit_by_numbers:
+            if delimit_by_numbers:
                 if followers_count:
                     if max_followers:
                         if followers_count > max_followers:
