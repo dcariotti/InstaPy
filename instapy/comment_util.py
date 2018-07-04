@@ -10,6 +10,7 @@ from selenium.common.exceptions import InvalidElementStateException
 from selenium.common.exceptions import NoSuchElementException
 import emoji
 
+import json
 
 def get_comment_input(browser):
     comment_input = browser.find_elements_by_xpath(
@@ -36,7 +37,7 @@ def open_comment_section(browser):
         print(missing_comment_elem_warning)
 
 
-def comment_image(path_for_igbooster, browser, username, comments, blacklist, logger, logfolder):
+def comment_image(path_for_igbooster, link, browser, username, comments, blacklist, logger, logfolder):
     """Checks if it should comment on the image"""
     rand_comment = (choice(comments).format(username))
     rand_comment = emoji.demojize(rand_comment)

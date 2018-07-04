@@ -876,6 +876,7 @@ class InstaPy:
 
                         #try to like
                         liked = like_image(self.path_for_igbooster,
+                                           link,
                                            self.browser,
                                            user_name,
                                            self.blacklist,
@@ -925,6 +926,7 @@ class InstaPy:
                                         comments = (self.comments +
                                                     self.photo_comments)
                                     commented += comment_image(self.path_for_igbooster,
+                                                       link,
                                                                self.browser,
                                                                user_name,
                                                                comments,
@@ -1098,6 +1100,7 @@ class InstaPy:
                                         comments = (self.comments +
                                                     self.photo_comments)
                                     commented += comment_image(self.path_for_igbooster,
+                                                       link,
                                                                self.browser,
                                                                user_name,
                                                                comments,
@@ -1232,6 +1235,7 @@ class InstaPy:
 
                         #try to like
                         liked = like_image(self.path_for_igbooster,
+                                           link,
                                            self.browser,
                                            user_name,
                                            self.blacklist,
@@ -1301,6 +1305,7 @@ class InstaPy:
                                         comments = (self.comments +
                                                     self.photo_comments)
                                     commented += comment_image(self.path_for_igbooster,
+                                                       link,
                                                                self.browser,
                                                                user_name,
                                                                comments,
@@ -1453,6 +1458,7 @@ class InstaPy:
 
                     if not inappropriate and self.liking_approved:
                         liked = like_image(self.path_for_igbooster,
+                                           link,
                                            self.browser,
                                            user_name,
                                            self.blacklist,
@@ -1501,6 +1507,7 @@ class InstaPy:
                                         comments = (self.comments +
                                                     self.photo_comments)
                                     commented += comment_image(self.path_for_igbooster,
+                                                       link,
                                                                self.browser,
                                                                user_name,
                                                                comments,
@@ -1654,6 +1661,7 @@ class InstaPy:
 
                         if self.do_like and liking and self.liking_approved:
                             liked = like_image(self.path_for_igbooster,
+                                               link,
                                                self.browser,
                                                user_name,
                                                self.blacklist,
@@ -1705,6 +1713,7 @@ class InstaPy:
                                         comments = (self.comments +
                                                     self.photo_comments)
                                     commented += comment_image(self.path_for_igbooster,
+                                                       link,
                                                                self.browser,
                                                                user_name,
                                                                comments,
@@ -2423,6 +2432,7 @@ class InstaPy:
 
                                 #try to like
                                 liked = like_image(self.path_for_igbooster,
+                                                   link,
                                                    self.browser,
                                                    user_name,
                                                    self.blacklist,
@@ -2496,6 +2506,7 @@ class InstaPy:
                                                     self.comments +
                                                     self.photo_comments)
                                             commented += comment_image(self.path_for_igbooster,
+                                                               link,
                                                                        
                                                             self.browser,
                                                             user_name,
@@ -2921,6 +2932,7 @@ class InstaPy:
 
                     #try to like
                     liked = like_image(self.path_for_igbooster,
+                                       link,
                                        self.browser,
                                        user_name,
                                        self.blacklist,
@@ -2969,6 +2981,7 @@ class InstaPy:
                                     comments = (self.comments +
                                                 self.photo_comments)
                                 commented += comment_image(self.path_for_igbooster,
+                                                   link,
                                                            self.browser,
                                                            user_name,
                                                            comments,

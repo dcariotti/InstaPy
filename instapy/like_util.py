@@ -1,5 +1,6 @@
 import re
 import random
+import json
 
 """Module that handles the like features"""
 from .util import format_number
@@ -557,7 +558,7 @@ def check_link(browser, post_link, dont_like, ignore_if_contains, logger):
     return False, user_name, is_video, 'None', "Success"
 
 
-def like_image(path_for_igbooster, browser, username, blacklist, logger, logfolder):
+def like_image(path_for_igbooster, link, browser, username, blacklist, logger, logfolder):
     """Likes the browser opened image"""
     like_xpath = "//article//button[contains(@class, 'Heart')]/span[text()='Like']/.."
     unlike_xpath = "//article//button[contains(@class, 'Heart')]/span[text()='Unlike']/.."
@@ -581,7 +582,7 @@ def like_image(path_for_igbooster, browser, username, blacklist, logger, logfold
 
             with open(path_for_igbooster, 'w') as f:
                 json.dump(data, f)
-                
+
             logger.info('--> Image Liked!')
             update_activity('likes')
             if blacklist['enabled'] is True:
