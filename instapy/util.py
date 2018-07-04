@@ -118,12 +118,12 @@ def validate_username(browser,
                         if following_count < min_following:
                             return False, \
                                 "User {}'s following count is less than minimum limit  ~skipping user\n".format(username)
-                if potency_ratio:
-                    if relationship_ratio and relationship_ratio < potency_ratio:
-                        return False, \
-                            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
-                            username, "potential user" if not reverse_relationship else "massive follower",
-                            float("{0:.2f}".format(relationship_ratio)))
+                #if potency_ratio:
+                #    if relationship_ratio and relationship_ratio < potency_ratio:
+                #        return False, \
+                #            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
+                #            username, "potential user" if not reverse_relationship else "massive follower",
+                #            float("{0:.2f}".format(relationship_ratio)))
 
 
     # if everything ok
@@ -575,6 +575,7 @@ def interruption_handler(SIG_type=signal.SIGINT, handler=signal.SIG_IGN, notify=
 
 def highlight_print(username=None, message=None, priority=None, level=None, logger=None):
     """ Print headers in a highlighted style """
+    """ NOT USED FOR THE MOMENT """
     #can add other highlighters at other priorities enriching this function
 
     #find the number of chars needed off the length of the logger message
@@ -601,15 +602,11 @@ def highlight_print(username=None, message=None, priority=None, level=None, logg
         upper_char = "_"
         lower_char = "\""
 
-    print("\n{}".format(upper_char*output_len))
-
     if level == "info":
         logger.info(message)
     elif level == "warning":
         logger.warning(message)
     elif level == "critical":
         logger.critical(message)
-
-    #print("{}".format(lower_char*output_len))
 
 
