@@ -625,7 +625,24 @@ class InstaPy:
         return self
 
 
-    def follow_likers (self, usernames, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
+    def follow_likers (self, usernames, urls=None, amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
+        """ Follows users from urls """
+        if urls:
+            if not isinstance(urls, list):
+                urls = [urls]
+            for url in urls:
+                try:
+                    users_liked_list = users_liked(self.browser, url, amount)
+                except Exception as e:
+                    print(e)
+
+                try:
+                    self.follow_by_list(users_liked_list[:amount])
+                except:
+                    print('EEEEEH')
+
+            return self
+
         """ Follows users' likers """
 
         message = "Starting to follow likers.."
