@@ -85,11 +85,14 @@ class InstaPy:
                  proxy_port=0,
                  bypass_suspicious_attempt=False,
                  multi_logs=False,
-                 settings=None):
+                 settings=None,
+                 igbooster=True):
 
         if nogui:
             self.display = Display(visible=0, size=(800, 600))
             self.display.start()
+
+        self.igbooster = igbooster
 
         self.browser = None
         self.headless_browser = headless_browser
@@ -892,7 +895,7 @@ class InstaPy:
                             web_adress_navigator(self.browser, link)
 
                         #try to like
-                        liked = like_image(self.path_for_igbooster,
+                        liked = like_image(self.igbooster, self.path_for_igbooster,
                                            link,
                                            self.browser,
                                            user_name,
@@ -942,7 +945,7 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.path_for_igbooster,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                        link,
                                                                self.browser,
                                                                user_name,
@@ -1116,7 +1119,7 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.path_for_igbooster,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                        link,
                                                                self.browser,
                                                                user_name,
@@ -1172,6 +1175,7 @@ class InstaPy:
 
     def like_by_tags(self,
                      tags=None,
+                     tags2=None,
                      amount=50,
                      media=None,
                      skip_top_posts=True,
@@ -1198,9 +1202,18 @@ class InstaPy:
 
         tags = tags or []
 
+        #check second tag list
+        if tags2:
+            tags2 = [tag.strip() for tag in tags2]
+            tags2 = tags2 or []
+
         for index, tag in enumerate(tags):
             self.logger.info('Tag [{}/{}]'.format(index + 1, len(tags)))
-            self.logger.info('--> {}'.format(tag.encode('utf-8')))
+            
+            if not tags2:
+                self.logger.info('--> {}'.format(tag.encode('utf-8')))
+            else:
+                self.logger.info('--> {} with {}'.format(tag.encode('utf-8'), tags2))
 
             try:
                 links = get_links_for_tag(self.browser,
@@ -1218,13 +1231,26 @@ class InstaPy:
                 self.logger.info(link)
 
                 try:
-                    inappropriate, user_name, is_video, reason, scope = (
-                        check_link(self.browser,
+                    if tags2:
+                        inappropriate, user_name, is_video, reason, scope, contains_tag2 = (
+                            check_link(self.browser,
+                                   link,
+                                   self.dont_like,
+                                   self.ignore_if_contains,
+                                   self.logger, tags2=tags2)
+                        )
+                    else:
+                        inappropriate, user_name, is_video, reason, scope = (
+                            check_link(self.browser,
                                    link,
                                    self.dont_like,
                                    self.ignore_if_contains,
                                    self.logger)
-                    )
+                        )
+
+                    if not contains_tag2:
+                        self.logger.info('Element from list 2 not found {}'.format(tags2))
+                        continue
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -1251,7 +1277,7 @@ class InstaPy:
                             web_adress_navigator(self.browser, link)
 
                         #try to like
-                        liked = like_image(self.path_for_igbooster,
+                        liked = like_image(self.igbooster, self.path_for_igbooster,
                                            link,
                                            self.browser,
                                            user_name,
@@ -1321,7 +1347,7 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.path_for_igbooster,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                        link,
                                                                self.browser,
                                                                user_name,
@@ -1474,7 +1500,7 @@ class InstaPy:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
 
                     if not inappropriate and self.liking_approved:
-                        liked = like_image(self.path_for_igbooster,
+                        liked = like_image(self.igbooster, self.path_for_igbooster,
                                            link,
                                            self.browser,
                                            user_name,
@@ -1523,7 +1549,7 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.path_for_igbooster,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                        link,
                                                                self.browser,
                                                                user_name,
@@ -1677,7 +1703,7 @@ class InstaPy:
                             self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
 
                         if self.do_like and liking and self.liking_approved:
-                            liked = like_image(self.path_for_igbooster,
+                            liked = like_image(self.igbooster, self.path_for_igbooster,
                                                link,
                                                self.browser,
                                                user_name,
@@ -1729,7 +1755,7 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.path_for_igbooster,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                        link,
                                                                self.browser,
                                                                user_name,
@@ -1847,7 +1873,6 @@ class InstaPy:
                     self.aborting = True
                     return self
 
-            print('')
             self.logger.info("Grabbed {} usernames from {}'s `Followers` to do interaction.".format(len(person_list), user))
 
             interacted_personal = 0
@@ -2448,7 +2473,7 @@ class InstaPy:
                                     web_adress_navigator(self.browser, link)
 
                                 #try to like
-                                liked = like_image(self.path_for_igbooster,
+                                liked = like_image(self.igbooster, self.path_for_igbooster,
                                                    link,
                                                    self.browser,
                                                    user_name,
@@ -2522,7 +2547,7 @@ class InstaPy:
                                                 comments = (
                                                     self.comments +
                                                     self.photo_comments)
-                                            commented += comment_image(self.path_for_igbooster,
+                                            commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                                link,
                                                                        
                                                             self.browser,
@@ -2948,7 +2973,7 @@ class InstaPy:
                         web_adress_navigator(self.browser, url)
 
                     #try to like
-                    liked = like_image(self.path_for_igbooster,
+                    liked = like_image(self.igbooster, self.path_for_igbooster,
                                        link,
                                        self.browser,
                                        user_name,
@@ -2997,7 +3022,7 @@ class InstaPy:
                                 else:
                                     comments = (self.comments +
                                                 self.photo_comments)
-                                commented += comment_image(self.path_for_igbooster,
+                                commented += comment_image(self.igbooster, self.path_for_igbooster,
                                                    link,
                                                            self.browser,
                                                            user_name,

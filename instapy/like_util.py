@@ -432,7 +432,7 @@ def get_links_for_username(browser,
     return links[:amount]
 
 
-def check_link(browser, post_link, dont_like, ignore_if_contains, logger):
+def check_link(browser, post_link, dont_like, ignore_if_contains, logger, tags2=False):
     """
     Check the given link if it is appropriate
 
@@ -525,7 +525,6 @@ def check_link(browser, post_link, dont_like, ignore_if_contains, logger):
     logger.info('Link: {}'.format(post_link.encode('utf-8')))
     logger.info('Description: {}'.format(image_text.encode('utf-8')))
 
-
     if any((word in image_text for word in ignore_if_contains)):
         return False, user_name, is_video, 'None', "Pass"
 
@@ -555,10 +554,20 @@ def check_link(browser, post_link, dont_like, ignore_if_contains, logger):
                 '" in "'.join([str(iffy), str(quashed)]))
             return True, user_name, is_video, inapp_unit, "Undesired word"
 
+    if tags2:
+        list_of_tags = [i.strip() for i in image_text.split('#')]
+        check_for_tags2 = False
+        for i in list_of_tags:
+            if i in tags2:
+                check_for_tags2 = True
+                break
+
+        return False, user_name, is_video, 'None', "Success", check_for_tags2
+
     return False, user_name, is_video, 'None', "Success"
 
 
-def like_image(path_for_igbooster, link, browser, username, blacklist, logger, logfolder):
+def like_image(igbooster, path_for_igbooster, link, browser, username, blacklist, logger, logfolder):
     """Likes the browser opened image"""
     like_xpath = "//article//button[contains(@class, 'Heart')]/span[text()='Like']/.."
     unlike_xpath = "//article//button[contains(@class, 'Heart')]/span[text()='Unlike']/.."
@@ -575,13 +584,14 @@ def like_image(path_for_igbooster, link, browser, username, blacklist, logger, l
         # check now we have unlike instead of like
         liked_elem = browser.find_elements_by_xpath(unlike_xpath)
         if len(liked_elem) == 1:
-            with open(path_for_igbooster, 'r') as f:
-                data = json.load(f)
+            if igbooster:
+                with open(path_for_igbooster, 'r') as f:
+                    data = json.load(f)
 
-            data['likes'].append(link)
+                data['likes'].append(link)
 
-            with open(path_for_igbooster, 'w') as f:
-                json.dump(data, f)
+                with open(path_for_igbooster, 'w') as f:
+                    json.dump(data, f)
 
             logger.info('--> Image Liked!')
             update_activity('likes')

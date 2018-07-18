@@ -37,7 +37,7 @@ def open_comment_section(browser):
         print(missing_comment_elem_warning)
 
 
-def comment_image(path_for_igbooster, link, browser, username, comments, blacklist, logger, logfolder):
+def comment_image(igbooster, path_for_igbooster, link, browser, username, comments, blacklist, logger, logfolder):
     """Checks if it should comment on the image"""
     rand_comment = (choice(comments).format(username))
     rand_comment = emoji.demojize(rand_comment)
@@ -70,15 +70,15 @@ def comment_image(path_for_igbooster, link, browser, username, comments, blackli
     except InvalidElementStateException:
         logger.info('--> Warning: Comment Action Likely Failed: Probably InvalidElementStateException')
 
-    data = {}
 
-    with open(path_for_igbooster, 'r') as f:
-        data = json.load(f)
+    if igbooster:
+        with open(path_for_igbooster, 'r') as f:
+            data = json.load(f)
 
-    data['comments'].append(link)
+        data['comments'].append(link)
 
-    with open(path_for_igbooster, 'w') as f:
-        json.dump(data, f)
+        with open(path_for_igbooster, 'w') as f:
+            json.dump(data, f)
 
     logger.info("--> Commented: {}".format(rand_comment.encode('utf-8')))
     sleep(2)
