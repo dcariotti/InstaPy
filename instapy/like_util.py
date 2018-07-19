@@ -555,11 +555,10 @@ def check_link(browser, post_link, dont_like, ignore_if_contains, logger, tags2=
             return True, user_name, is_video, inapp_unit, "Undesired word"
 
     if tags2:
-        list_of_tags = [i.strip() for i in image_text.split('#')]
         check_for_tags2 = False
-        for i in list_of_tags:
-            if i in tags2:
-                check_for_tags2 = True
+        for i in tags2:
+            if i in image_text:
+                check_for_tags2 = i
                 break
 
         return False, user_name, is_video, 'None', "Success", check_for_tags2

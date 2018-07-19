@@ -824,6 +824,7 @@ class InstaPy:
 
     def like_by_locations(self,
                           locations=None,
+                          list_of_tags=None,
                           amount=50,
                           media=None,
                           skip_top_posts=True):
@@ -839,11 +840,18 @@ class InstaPy:
         not_valid_users = 0
 
         locations = locations or []
+        if list_of_tags:
+            list_of_tags = [tag.strip() for tag in list_of_tags]
+            list_of_tags = list_of_tags or []
 
         for index, location in enumerate(locations):
             self.logger.info('Location [{}/{}]'
                              .format(index + 1, len(locations)))
-            self.logger.info('--> {}'.format(location.encode('utf-8')))
+
+            if not list_of_tags:
+                self.logger.info('--> {}'.format(location.encode('utf-8')))
+            else:
+                self.logger.info('--> {} with {}'.format(location.encode('utf-8'), list_of_tags))
 
             try:
                 links = get_links_for_location(self.browser,
@@ -862,13 +870,26 @@ class InstaPy:
                 self.logger.info(link)
 
                 try:
-                    inappropriate, user_name, is_video, reason, scope = (
-                        check_link(self.browser,
+                    if list_of_tags:
+                        inappropriate, user_name, is_video, reason, scope, contains_tag = (
+                            check_link(self.browser,
+                                   link,
+                                   self.dont_like,
+                                   self.ignore_if_contains,
+                                   self.logger, tags2=list_of_tags)
+                        )
+                    else:
+                        inappropriate, user_name, is_video, reason, scope = (
+                            check_link(self.browser,
                                    link,
                                    self.dont_like,
                                    self.ignore_if_contains,
                                    self.logger)
-                    )
+                        )
+
+                    if not contains_tag:
+                        self.logger.info('Element from list 2 not found {}'.format(list_of_tags))
+                        continue
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -1215,6 +1236,13 @@ class InstaPy:
             else:
                 self.logger.info('--> {} with {}'.format(tag.encode('utf-8'), tags2))
 
+                if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                    list_for_statistics = []
+                else:
+                    with open('logs/{}/data_tag_{}.csv'.format(self.username, tag)) as csvfile:
+                        f = csv.reader(csvfile, delimiter=';')
+                        list_for_statistics = [i[1] for i in f]
+
             try:
                 links = get_links_for_tag(self.browser,
                                           tag,
@@ -1232,13 +1260,17 @@ class InstaPy:
 
                 try:
                     if tags2:
-                        inappropriate, user_name, is_video, reason, scope, contains_tag2 = (
-                            check_link(self.browser,
-                                   link,
-                                   self.dont_like,
-                                   self.ignore_if_contains,
-                                   self.logger, tags2=tags2)
-                        )
+                        try:
+                            inappropriate, user_name, is_video, reason, scope, contains_tag2 = (
+                                check_link(self.browser,
+                                       link,
+                                       self.dont_like,
+                                       self.ignore_if_contains,
+                                       self.logger, tags2=tags2)
+                            )
+                        except Exception as e:
+                            print(e)
+                            continue
                     else:
                         inappropriate, user_name, is_video, reason, scope = (
                             check_link(self.browser,
@@ -1251,6 +1283,17 @@ class InstaPy:
                     if not contains_tag2:
                         self.logger.info('Element from list 2 not found {}'.format(tags2))
                         continue
+                    else:
+                        if user_name not in list_for_statistics:
+                            if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                                open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'w').close()
+
+                            with open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'a') as csvfile:
+                                f = csv.writer(csvfile, delimiter=';')
+                                f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, contains_tag2])
+                            #print('Added {}'.format(user_name))
+                            list_for_statistics.append(user_name)
+                            
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
