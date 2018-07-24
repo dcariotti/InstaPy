@@ -1268,6 +1268,19 @@ class InstaPy:
                                        self.ignore_if_contains,
                                        self.logger, tags2=tags2)
                             )
+                            if not contains_tag2:
+                                self.logger.info('Element from list 2 not found {}'.format(tags2))
+                                continue
+                            else:
+                                if user_name not in list_for_statistics:
+                                    if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                                        open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'w').close()
+
+                                    with open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'a') as csvfile:
+                                        f = csv.writer(csvfile, delimiter=';')
+                                        f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, contains_tag2])
+                                    #print('Added {}'.format(user_name))
+                                    list_for_statistics.append(user_name)
                         except Exception as e:
                             print(e)
                             continue
@@ -1278,22 +1291,7 @@ class InstaPy:
                                    self.dont_like,
                                    self.ignore_if_contains,
                                    self.logger)
-                        )
-
-                    if not contains_tag2:
-                        self.logger.info('Element from list 2 not found {}'.format(tags2))
-                        continue
-                    else:
-                        if user_name not in list_for_statistics:
-                            if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
-                                open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'w').close()
-
-                            with open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'a') as csvfile:
-                                f = csv.writer(csvfile, delimiter=';')
-                                f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, contains_tag2])
-                            #print('Added {}'.format(user_name))
-                            list_for_statistics.append(user_name)
-                            
+                        )                            
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
