@@ -66,7 +66,6 @@ from .database_engine import get_database
 class InstaPyError(Exception):
     """General error for InstaPy exceptions"""
 
-
 class InstaPy:
     """Class to be instantiated to use the script"""
 
