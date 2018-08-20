@@ -66,7 +66,6 @@ from InstagramAPI import InstagramAPI
 class InstaPyError(Exception):
     """General error for InstaPy exceptions"""
 
-
 class InstaPy:
     """Class to be instantiated to use the script"""
 
