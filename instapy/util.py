@@ -103,16 +103,16 @@ def validate_username(browser,
         followers_count if followers_count else 'unknown',
         following_count if following_count else 'unknown',
         float("{0:.2f}".format(relationship_ratio)) if relationship_ratio else 'unknown'))
-
         if followers_count  or following_count:
-            if potency_ratio and not delimit_by_numbers:
-                if relationship_ratio and relationship_ratio < potency_ratio:
-                        return False, \
-                            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
-                            username, "potential user" if not reverse_relationship else "massive follower",
-                            float("{0:.2f}".format(relationship_ratio)))
+            #if potency_ratio and not delimit_by_numbers:
+            #    if relationship_ratio and relationship_ratio < potency_ratio:
+            #            return False, \
+            #                "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
+            #                username, "potential user" if not reverse_relationship else "massive follower",
+            #                float("{0:.2f}".format(relationship_ratio)))
 
-            elif delimit_by_numbers:
+            #elif delimit_by_numbers:
+            if delimit_by_numbers:
                 if followers_count:
                     if max_followers:
                         if followers_count > max_followers:
@@ -131,12 +131,12 @@ def validate_username(browser,
                         if following_count < min_following:
                             return False, \
                                 "User {}'s following count is less than minimum limit  ~skipping user\n".format(username)
-                if potency_ratio:
-                    if relationship_ratio and relationship_ratio < potency_ratio:
-                        return False, \
-                            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
-                            username, "potential user" if not reverse_relationship else "massive follower",
-                            float("{0:.2f}".format(relationship_ratio)))
+                #if potency_ratio:
+                #    if relationship_ratio and relationship_ratio < potency_ratio:
+                #        return False, \
+                #            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
+                #            username, "potential user" if not reverse_relationship else "massive follower",
+                #            float("{0:.2f}".format(relationship_ratio)))
 
 
     # if everything ok
@@ -147,6 +147,7 @@ def validate_username(browser,
 def update_activity(action=None):
     """ Record every Instagram server call (page load, content load, likes,
         comments, follows, unfollow). """
+    return
 
     # get a DB and start a connection
     db, id = get_database()
@@ -644,8 +645,7 @@ def highlight_print(username=None, message=None, priority=None, level=None, logg
         upper_char = "_"
         lower_char = "\""
 
-    print("\n{}".format(upper_char*output_len))
-
+    #print("\n{}".format(upper_char*output_len))
     if level == "info":
         logger.info(message)
     elif level == "warning":
@@ -653,9 +653,7 @@ def highlight_print(username=None, message=None, priority=None, level=None, logg
     elif level == "critical":
         logger.critical(message)
 
-    print("{}".format(lower_char*output_len))
-
-
+    #print("{}".format(lower_char*output_len))
 
 def remove_duplicated_from_list_keep_order(_list):
     seen = set()
@@ -666,6 +664,7 @@ def remove_duplicated_from_list_keep_order(_list):
 
 def dump_record_activity(profile_name, logger, logfolder):
     """ Dump the record activity data to a local human-readable JSON """
+    return
 
     try:
         # get a DB and start a connection
@@ -710,6 +709,5 @@ def dump_record_activity(profile_name, logger, logfolder):
         if conn:
             # close the open connection
             conn.close()
-
 
 

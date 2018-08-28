@@ -61,10 +61,12 @@ from .relationship_tools import get_fans
 from .relationship_tools import get_mutual_following
 from .database_engine import get_database
 
-
+# InstagramAPI
+from InstagramAPI import InstagramAPI
 
 class InstaPyError(Exception):
     """General error for InstaPy exceptions"""
+
 
 class InstaPy:
     """Class to be instantiated to use the script"""
@@ -77,17 +79,21 @@ class InstaPy:
                  use_firefox=False,
                  browser_profile_path=None,
                  page_delay=25,
-                 show_logs=True,
+                 show_logs=False,
                  headless_browser=False,
                  proxy_address=None,
                  proxy_chrome_extension=None,
                  proxy_port=0,
                  bypass_suspicious_attempt=False,
-                 multi_logs=False):
+                 multi_logs=False,
+                 settings=None,
+                 igbooster=True):
 
         if nogui:
             self.display = Display(visible=0, size=(800, 600))
             self.display.start()
+
+        self.igbooster = igbooster
 
         self.browser = None
         self.headless_browser = headless_browser
@@ -100,7 +106,6 @@ class InstaPy:
 
         self.username = username or os.environ.get('INSTA_USER')
         self.password = password or os.environ.get('INSTA_PW')
-        Settings.profile["name"] = self.username
         self.nogui = nogui
         self.logfolder = Settings.log_location + os.path.sep
         if self.multi_logs == True:
@@ -130,6 +135,7 @@ class InstaPy:
         self.unfollowNumber = 0
         self.not_valid_users = 0
 
+
         self.follow_times = 1
         self.do_follow = False
         self.follow_percentage = 0
@@ -142,7 +148,6 @@ class InstaPy:
         self.smart_hashtags = []
 
         self.dont_like = ['sex', 'nsfw']
-        self.mandatory_words = []
         self.ignore_if_contains = []
         self.ignore_users = []
 
@@ -160,15 +165,25 @@ class InstaPy:
         self.potency_ratio = 1.3466
         self.delimit_by_numbers = True
 
-        self.max_followers = 90000
-        self.max_following = 66834
-        self.min_followers = 35
-        self.min_following = 27
+        #self.max_followers = 2500
+        self.max_following = 4000
+        self.min_followers = 50
+        self.min_following = 50
+
+        try:
+            self.max_followers = settings['max_followers']
+        except Exception:
+            self.max_followers = 2500
 
         self.delimit_liking = False
         self.liking_approved = True
         self.max_likes = 1000
         self.min_likes = 0
+
+        self.delimit_commenting = False
+        self.commenting_approved = True
+        self.max_comments = 35
+        self.min_comments = 0
 
         self.delimit_commenting = False
         self.commenting_approved = True
@@ -183,10 +198,14 @@ class InstaPy:
 
         self.aborting = False
 
-        # Assign logger
-        self.logger = self.get_instapy_logger(self.show_logs)
+        self.mandatory_words = []
 
-        get_database(make=True)
+        # Assign logger
+        self.log_user = ('instapy_user_%s' % self.username)
+        self.logger = self.get_instapy_logger(show_logs)
+        self.ig_api = InstagramAPI(self.username, self.password)
+        self.ig_api.login()
+        self.path_for_igbooster = 'logs/%s/info_for_igbooster.json' % self.username
 
         if self.selenium_local_session == True:
             self.set_selenium_local_session()
@@ -197,12 +216,12 @@ class InstaPy:
         Handles the creation and retrieval of loggers to avoid re-instantiation.
         """
 
-        existing_logger = Settings.loggers.get(__name__)
+        existing_logger = Settings.loggers.get(self.log_user)
         if existing_logger is not None:
             return existing_logger
         else:
             # initialize and setup logging system for the InstaPy object
-            logger = logging.getLogger(__name__)
+            logger = logging.getLogger(self.log_user)
             logger.setLevel(logging.DEBUG)
             file_handler = logging.FileHandler('{}general.log'.format(self.logfolder))
             file_handler.setLevel(logging.DEBUG)
@@ -219,7 +238,7 @@ class InstaPy:
 
             logger = logging.LoggerAdapter(logger, extra)
 
-            Settings.loggers[__name__] = logger
+            Settings.loggers[self.log_user] = logger
             Settings.logger = logger
             return logger
 
@@ -259,6 +278,7 @@ class InstaPy:
             #chrome_options.add_argument("--disable-infobars")
             chrome_options.add_argument("--mute-audio")
             chrome_options.add_argument('--dns-prefetch-disable')
+            #chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--lang=en-US')
             chrome_options.add_argument('--disable-setuid-sandbox')
 
@@ -266,7 +286,6 @@ class InstaPy:
             # GUI-less browser. chromedriver 2.9 and above required
             if self.headless_browser:
                 chrome_options.add_argument('--headless')
-                chrome_options.add_argument('--no-sandbox')
                 # Replaces browser User Agent from "HeadlessChrome".
                 user_agent = "Chrome"
                 chrome_options.add_argument('user-agent={user_agent}'
@@ -427,21 +446,6 @@ class InstaPy:
             self.aborting = True
 
         self.dont_like = tags or []
-
-        return self
-
-    def set_mandatory_words(self, tags=None):
-        """Changes the possible restriction tags, if all of this
-         hashtags is in the description, the image will be liked"""
-        if self.aborting:
-            return self
-
-        if not isinstance(tags, list):
-            self.logger.warning('Unable to use your set_mandatory_words '
-                                'configuration!')
-            self.aborting = True
-
-        self.mandatory_words = tags or []
 
         return self
 
@@ -626,7 +630,24 @@ class InstaPy:
         return self
 
 
-    def follow_likers (self, usernames, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
+    def follow_likers (self, usernames, urls=None, amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
+        """ Follows users from urls """
+        if urls:
+            if not isinstance(urls, list):
+                urls = [urls]
+            for url in urls:
+                try:
+                    users_liked_list = users_liked(self.browser, url, amount)
+                except Exception as e:
+                    print(e)
+
+                try:
+                    self.follow_by_list(users_liked_list[:amount])
+                except:
+                    print('EEEEEH')
+
+            return self
+
         """ Follows users' likers """
 
         message = "Starting to follow likers.."
@@ -816,6 +837,7 @@ class InstaPy:
 
     def like_by_locations(self,
                           locations=None,
+                          tags2=None,
                           amount=50,
                           media=None,
                           skip_top_posts=True):
@@ -832,10 +854,25 @@ class InstaPy:
 
         locations = locations or []
 
+        #check second tag list
+        if tags2:
+            tags2 = [tag.strip() for tag in tags2]
+            tags2 = tags2 or []
+
         for index, location in enumerate(locations):
             self.logger.info('Location [{}/{}]'
                              .format(index + 1, len(locations)))
-            self.logger.info('--> {}'.format(location.encode('utf-8')))
+            if not tags2:            
+                self.logger.info('--> {}'.format(location.encode('utf-8')))
+            else:
+                self.logger.info('--> {} with {}'.format(location.encode('utf-8'), tags2))
+
+                if not os.path.exists('logs/{}/data_location_{}.csv'.format(self.username, location)):
+                    list_for_statistics = []
+                else:
+                    with open('logs/{}/data_location_{}.csv'.format(self.username, location)) as csvfile:
+                        f = csv.reader(csvfile, delimiter=';')
+                        list_for_statistics = [i[1] for i in f]
 
             try:
                 links = get_links_for_location(self.browser,
@@ -854,14 +891,41 @@ class InstaPy:
                 self.logger.info(link)
 
                 try:
-                    inappropriate, user_name, is_video, reason, scope = (
-                        check_link(self.browser,
+                    if tags2:
+                        try:
+                            inappropriate, user_name, is_video, reason, scope, contains_tag2 = (
+                                check_link(self.browser,
+                                       link,
+                                       self.dont_like,
+                                       self.mandatory_words,
+                                       self.ignore_if_contains,
+                                       self.logger, tags2=tags2)
+                            )
+                            if not contains_tag2:
+                                self.logger.info('Element from list 2 not found {}'.format(tags2))
+                                continue
+                            else:
+                                if user_name not in list_for_statistics:
+                                    if not os.path.exists('logs/{}/data_location_{}.csv'.format(self.username, location)):
+                                        open('logs/{}/data_location_{}.csv'.format(self.username, location), 'w').close()
+
+                                    with open('logs/{}/data_location_{}.csv'.format(self.username, location), 'a') as csvfile:
+                                        f = csv.writer(csvfile, delimiter=';')
+                                        f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, contains_tag2])
+                                    #print('Added {}'.format(user_name))
+                                    list_for_statistics.append(user_name)
+                        except Exception as e:
+                            print(e)
+                            continue
+                    else:
+                        inappropriate, user_name, is_video, reason, scope = (
+                            check_link(self.browser,
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
                                    self.ignore_if_contains,
                                    self.logger)
-                    )
+                        )
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -888,7 +952,9 @@ class InstaPy:
                             web_adress_navigator(self.browser, link)
 
                         #try to like
-                        liked = like_image(self.browser,
+                        liked = like_image(self.igbooster, self.path_for_igbooster,
+                                        link,
+                                        self.browser,
                                            user_name,
                                            self.blacklist,
                                            self.logger,
@@ -936,7 +1002,9 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.browser,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
+                                                                link,
+                                                                self.browser,
                                                                user_name,
                                                                comments,
                                                                self.blacklist,
@@ -1108,7 +1176,9 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.browser,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
+                                                                link,
+                                                                self.browser,
                                                                user_name,
                                                                comments,
                                                                self.blacklist,
@@ -1161,6 +1231,8 @@ class InstaPy:
 
     def like_by_tags(self,
                      tags=None,
+                     tags2=None,
+                     locations=None,
                      amount=50,
                      skip_top_posts=True,
                      use_smart_hashtags=False,
@@ -1188,9 +1260,37 @@ class InstaPy:
 
         tags = tags or []
 
+        #check second tag list
+        if tags2:
+            tags2 = [tag.strip() for tag in tags2]
+            tags2 = tags2 or []
+
         for index, tag in enumerate(tags):
             self.logger.info('Tag [{}/{}]'.format(index + 1, len(tags)))
-            self.logger.info('--> {}'.format(tag.encode('utf-8')))
+            
+            if not tags2 and not locations:
+                self.logger.info('--> {}'.format(tag.encode('utf-8')))
+            elif not tags2 and locations:
+                self.logger.info('--> {} with {}'.format(tag.encode('utf-8'), locations))
+
+                if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                    list_for_statistics = []
+                else:
+                    with open('logs/{}/data_tag_{}.csv'.format(self.username, tag)) as csvfile:
+                        f = csv.reader(csvfile, delimiter=';')
+                        list_for_statistics = [i[1] for i in f]
+            else:
+                if locations:
+                    self.logger.info('--> {} with {} and {}'.format(tag.encode('utf-8'), tags2, locations))
+                else:
+                    self.logger.info('--> {} with {}'.format(tag.encode('utf-8'), tags2))
+
+                if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                    list_for_statistics = []
+                else:
+                    with open('logs/{}/data_tag_{}.csv'.format(self.username, tag)) as csvfile:
+                        f = csv.reader(csvfile, delimiter=';')
+                        list_for_statistics = [i[1] for i in f]
 
             try:
                 links = get_links_for_tag(self.browser,
@@ -1209,14 +1309,90 @@ class InstaPy:
                 self.logger.info(link)
 
                 try:
-                    inappropriate, user_name, is_video, reason, scope = (
-                        check_link(self.browser,
+                    if tags2:
+                        try:
+                            if locations:
+                                inappropriate, user_name, is_video, reason, scope, contains_tag2, contains_locations = (
+                                    check_link(self.browser,
+                                       link,
+                                       self.dont_like,
+                                       self.mandatory_words,
+                                       self.ignore_if_contains,
+                                       self.logger, tags2=tags2, locations=locations)
+                                )
+                                if not contains_tag2 and not contains_locations:
+                                    self.logger.info('Element from list 2 not found {}'.format(tags2))
+                                    continue
+                                else:
+                                    if user_name not in list_for_statistics:
+                                        if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                                            open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'w').close()
+
+                                        with open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'a') as csvfile:
+                                            f = csv.writer(csvfile, delimiter=';')
+                                            f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, contains_tag2])
+                                        #print('Added {}'.format(user_name))
+                                        list_for_statistics.append(user_name)
+                            else:
+                                inappropriate, user_name, is_video, reason, scope, contains_tag2 = (
+                                    check_link(self.browser,
+                                       link,
+                                       self.dont_like,
+                                       self.mandatory_words,
+                                       self.ignore_if_contains,
+                                       self.logger, tags2=tags2)
+                                )
+                                if not contains_tag2:
+                                    self.logger.info('Element from list 2 not found {}'.format(tags2))
+                                    continue
+                                else:
+                                    if user_name not in list_for_statistics:
+                                        if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                                            open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'w').close()
+
+                                        with open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'a') as csvfile:
+                                            f = csv.writer(csvfile, delimiter=';')
+                                            f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, contains_tag2])
+                                        #print('Added {}'.format(user_name))
+                                        list_for_statistics.append(user_name)
+                        except Exception as e:
+                            print(e)
+                            continue
+                    elif locations:
+                        try:
+                            inappropriate, user_name, is_video, reason, scope, contains_locations = (
+                                check_link(self.browser,
+                                       link,
+                                       self.dont_like,
+                                       self.mandatory_words,
+                                       self.ignore_if_contains,
+                                       self.logger, locations=locations)
+                            )
+                            if not contains_locations:
+                                self.logger.info('Location not found {}'.format(locations))
+                                continue
+                            else:
+                                if user_name not in list_for_statistics:
+                                    if not os.path.exists('logs/{}/data_tag_{}.csv'.format(self.username, tag)):
+                                        open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'w').close()
+
+                                    with open('logs/{}/data_tag_{}.csv'.format(self.username, tag), 'a') as csvfile:
+                                        f = csv.writer(csvfile, delimiter=';')
+                                        f.writerow([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), user_name, link, 'Location: %s' % contains_locations])
+                                    #print('Added {}'.format(user_name))
+                                    list_for_statistics.append(user_name)
+                        except Exception as e:
+                            print(e)
+                            continue
+                    else:
+                        inappropriate, user_name, is_video, reason, scope = (
+                            check_link(self.browser,
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
                                    self.ignore_if_contains,
                                    self.logger)
-                    )
+                        )                            
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -1243,7 +1419,9 @@ class InstaPy:
                             web_adress_navigator(self.browser, link)
 
                         #try to like
-                        liked = like_image(self.browser,
+                        liked = like_image(self.igbooster, self.path_for_igbooster,
+                                        link,
+                                        self.browser,
                                            user_name,
                                            self.blacklist,
                                            self.logger,
@@ -1311,7 +1489,9 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.browser,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
+                                                                link,
+                                                                self.browser,
                                                                user_name,
                                                                comments,
                                                                self.blacklist,
@@ -1462,7 +1642,9 @@ class InstaPy:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
 
                     if not inappropriate and self.liking_approved:
-                        liked = like_image(self.browser,
+                        liked = like_image(self.igbooster, self.path_for_igbooster,
+                                        link,
+                                        self.browser,
                                            user_name,
                                            self.blacklist,
                                            self.logger,
@@ -1509,7 +1691,9 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.browser,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
+                                                                link,
+                                                                self.browser,
                                                                user_name,
                                                                comments,
                                                                self.blacklist,
@@ -1661,7 +1845,8 @@ class InstaPy:
                             self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
 
                         if self.do_like and liking and self.liking_approved:
-                            liked = like_image(self.browser,
+                            liked = like_image(self.igbooster, self.path_for_igbooster,
+                                            self.browser,
                                                user_name,
                                                self.blacklist,
                                                self.logger,
@@ -1711,7 +1896,9 @@ class InstaPy:
                                     else:
                                         comments = (self.comments +
                                                     self.photo_comments)
-                                    commented += comment_image(self.browser,
+                                    commented += comment_image(self.igbooster, self.path_for_igbooster,
+                                                                link,
+                                                                self.browser,
                                                                user_name,
                                                                comments,
                                                                self.blacklist,
@@ -1752,7 +1939,7 @@ class InstaPy:
         self.not_valid_users += not_valid_users
 
         return self
-
+        
     def like_from_image(self, url, amount=50, media=None):
         """Gets the tags from an image and likes 50 images for each tag"""
         if self.aborting:
@@ -1826,7 +2013,6 @@ class InstaPy:
                     self.aborting = True
                     return self
 
-            print('')
             self.logger.info("Grabbed {} usernames from {}'s `Followers` to do interaction.".format(len(person_list), user))
 
             interacted_personal = 0
@@ -2161,7 +2347,7 @@ class InstaPy:
             self.logger.info("User '{}' [{}/{}]".format((user), index+1, len(usernames)))
 
             try:
-                person_list, simulated_list = get_given_user_following(self.browser,
+                person_list, simulated_list = get_given_user_followers(self.browser,
                                                                         self.username,
                                                                         user,
                                                                         amount,
@@ -2425,7 +2611,8 @@ class InstaPy:
                                     web_adress_navigator(self.browser, link)
 
                                 #try to like
-                                liked = like_image(self.browser,
+                                liked = like_image(self.igbooster, self.path_for_igbooster,
+                                            self.browser,
                                                    user_name,
                                                    self.blacklist,
                                                    self.logger,
@@ -2497,7 +2684,7 @@ class InstaPy:
                                                 comments = (
                                                     self.comments +
                                                     self.photo_comments)
-                                            commented += comment_image(
+                                            commented += like_image(self.igbooster, self.path_for_igbooster, link,
                                                             self.browser,
                                                             user_name,
                                                             comments,
@@ -2612,6 +2799,7 @@ class InstaPy:
             return self
 
         #Get `followers` data
+        grabbed_followers = []
         grabbed_followers = get_followers(self.browser,
                                           username,
                                           amount,
@@ -2640,6 +2828,7 @@ class InstaPy:
             return self
 
         #Get `following` data
+        grabbed_following = []
         grabbed_following = get_following(self.browser,
                                           username,
                                           amount,
@@ -2733,9 +2922,9 @@ class InstaPy:
 
     def end(self):
         """Closes the current session"""
-        with interruption_handler():
-            dump_follow_restriction(self.username, self.logger, self.logfolder)
-            dump_record_activity(self.username, self.logger, self.logfolder)
+        #with interruption_handler():
+        #    dump_follow_restriction(self.username, self.logger, self.logfolder)
+        #    dump_record_activity(self.username, self.logger, self.logfolder)
 
         try:
             self.browser.delete_all_cookies()
@@ -2923,7 +3112,7 @@ class InstaPy:
                         web_adress_navigator(self.browser, url)
 
                     #try to like
-                    liked = like_image(self.browser,
+                    liked = like_image(self.igbooster, self.path_for_igbooster,self.browser,
                                        user_name,
                                        self.blacklist,
                                        self.logger,
@@ -2970,7 +3159,7 @@ class InstaPy:
                                 else:
                                     comments = (self.comments +
                                                 self.photo_comments)
-                                commented += comment_image(self.browser,
+                                commented += like_image(self.igbooster, self.path_for_igbooster, link, self.browser,
                                                            user_name,
                                                            comments,
                                                            self.blacklist,

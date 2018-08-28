@@ -10,6 +10,7 @@ from selenium.common.exceptions import InvalidElementStateException
 from selenium.common.exceptions import NoSuchElementException
 import emoji
 
+import json
 
 def get_comment_input(browser):
     comment_input = browser.find_elements_by_xpath(
@@ -25,7 +26,7 @@ def open_comment_section(browser):
         '--> Warning: Comment Button Not Found:'
         ' May cause issues with browser windows of smaller widths')
     comment_elem = browser.find_elements_by_xpath(
-        "//a[@role='button']/span[text()='Comment']/..")
+        "//button/span[text()='Comment']/..")
     if len(comment_elem) > 0:
         try:
             browser.execute_script(
@@ -36,7 +37,7 @@ def open_comment_section(browser):
         print(missing_comment_elem_warning)
 
 
-def comment_image(browser, username, comments, blacklist, logger, logfolder):
+def comment_image(igbooster, path_for_igbooster, link, browser, username, comments, blacklist, logger, logfolder):
     """Checks if it should comment on the image"""
     rand_comment = (choice(comments).format(username))
     rand_comment = emoji.demojize(rand_comment)
@@ -67,7 +68,17 @@ def comment_image(browser, username, comments, blacklist, logger, logfolder):
             logger.warning('--> Warning: Comment Action Likely Failed:'
                            ' Comment Element not found')
     except InvalidElementStateException:
-        logger.warning('--> Warning: Comment Action Likely Failed: Probably InvalidElementStateException')
+        logger.info('--> Warning: Comment Action Likely Failed: Probably InvalidElementStateException')
+
+
+    if igbooster:
+        with open(path_for_igbooster, 'r') as f:
+            data = json.load(f)
+
+        data['comments'].append(link)
+
+        with open(path_for_igbooster, 'w') as f:
+            json.dump(data, f)
 
     logger.info("--> Commented: {}".format(rand_comment.encode('utf-8')))
     sleep(2)
@@ -87,8 +98,9 @@ def verify_commenting(browser, max, min, logger):
                 comments_disabled = browser.execute_script(
                     "return window._sharedData.entry_data."
                     "PostPage[0].graphql.shortcode_media.comments_disabled")            
-            except Exception as e:
-                logger.info("Failed to check comments' status for verification!\n\t{}".format(str(e).encode("utf-8"))) 
+            except:
+                logger.info("Failed to check comments' status for verification...\n")
+                raise
                 return True, 'Verification failure'
 
         if comments_disabled == True:
@@ -98,8 +110,9 @@ def verify_commenting(browser, max, min, logger):
             comments_count = browser.execute_script(
                 "return window._sharedData.entry_data."
                 "PostPage[0].graphql.shortcode_media.edge_media_to_comment.count")
-        except Exception as e:
-            logger.info("Failed to check comments' count for verification!\n\t{}".format(str(e).encode("utf-8"))) 
+        except:
+            logger.info("Failed to check comments' count for verification...\n")
+            raise
             return True, 'Verification failure'
 
         if max is not None and comments_count > max:

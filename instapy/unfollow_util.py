@@ -366,7 +366,7 @@ def unfollow(browser,
 
         # find dialog box
         dialog = browser.find_element_by_xpath(
-            "//div[text()='Following']/following-sibling::div")
+            "//div[text()='Following']/../../following-sibling::div")
         sleep(3)
 
         # get persons, unfollow buttons, and length of followed pool
@@ -611,7 +611,7 @@ def get_users_through_dialog(browser,
 
     # find dialog box
     dialog = browser.find_element_by_xpath(
-      "//div[text()='Followers' or text()='Following']/following-sibling::div")
+      "//div[text()='Followers' or text()='Following']/../../following-sibling::div")
 
     if channel == "Follow":
         # get follow buttons. This approach will find the follow buttons and
@@ -953,19 +953,11 @@ def get_given_user_following(browser,
 
 def dump_follow_restriction(profile_name, logger, logfolder):
     """ Dump follow restriction data to a local human-readable JSON """
+    return
 
     try:
         # get a DB and start a connection
-        db, id = get_database()
-        conn = sqlite3.connect(db)
-
-        with conn:
-            conn.row_factory = sqlite3.Row
-            cur = conn.cursor()
-
-            cur.execute("SELECT * FROM followRestriction WHERE profile_id=:var", {"var":id})
-            data = cur.fetchall()
-
+        
         if data:
             # get the existing data
             filename = "{}followRestriction.json".format(logfolder)
@@ -986,16 +978,11 @@ def dump_follow_restriction(profile_name, logger, logfolder):
     except Exception as exc:
         logger.error("Pow! Error occured while dumping follow restriction data to a local JSON:\n\t{}".format(str(exc).encode("utf-8")))
 
-    finally:
-        if conn:
-            # close the open connection
-            conn.close()
-
 
 
 def follow_restriction(operation, username, limit, logger):
     """ Keep track of the followed users and help avoid excessive follow of the same user """
-
+    return
     try:
         # get a DB and start a connection
         db, id = get_database()
@@ -1043,6 +1030,3 @@ def follow_restriction(operation, username, limit, logger):
         if conn:
              #close the open connection
             conn.close()
-
-
-

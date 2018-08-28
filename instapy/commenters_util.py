@@ -8,7 +8,6 @@ from selenium.webdriver.common.keys import Keys
 from .util import get_number_of_posts
 from .util import click_element
 from .util import update_activity
-from .util import web_adress_navigator
 from .util import username_url_to_username
 import random
 
@@ -40,7 +39,7 @@ def extract_post_info(browser):
             while (" comments" in comments[1].text):
                 more_comments += 1
                 print ("loading more comments.")
-                load_more_comments_element = browser.find_element_by_xpath("//div/ul/li[2]/button")
+                load_more_comments_element = browser.find_element_by_xpath("//div/ul/li[2]/a")
                 browser.execute_script("arguments[0].click();", load_more_comments_element)
                 sleep(1)
                 #comment_list = post.find_element_by_tag_name('ul')
@@ -54,7 +53,7 @@ def extract_post_info(browser):
                 while (" comments" in comments[0].text):
                     more_comments += 1
                     print ("loading more comments.")
-                    load_more_comments_element = browser.find_element_by_xpath("//div/ul/li[1]/button")
+                    load_more_comments_element = browser.find_element_by_xpath("//div/ul/li[1]/a")
                     browser.execute_script("arguments[0].click();", load_more_comments_element)
                     sleep(1)
                     #comment_list = post.find_element_by_tag_name('ul')
@@ -79,7 +78,7 @@ def extract_post_info(browser):
 def extract_information(browser, username, daysold, max_pic):
   
     """Get all the information for the given username"""
-    web_adress_navigator(browser,'https://www.instagram.com/' + username)
+    browser.get('https://www.instagram.com/' + username)
     
     try:
         num_of_posts = get_number_of_posts(browser)
@@ -192,7 +191,7 @@ def extract_information(browser, username, daysold, max_pic):
         print ("\nScrapping link: ", link)
         
         try:
-            web_adress_navigator(browser,link)
+            browser.get(link)  
             user_commented_list, pic_date_time = extract_post_info(browser)     
             user_commented_total_list = user_commented_total_list + user_commented_list
 
@@ -235,7 +234,7 @@ def extract_information(browser, username, daysold, max_pic):
 def users_liked (browser, photo_url, amount=100):
     photo_likers = []
     try:
-        web_adress_navigator(browser,photo_url)
+        browser.get(photo_url)  
         photo_likers = likers_from_photo(browser, amount)   
         sleep(2)  
     except NoSuchElementException:
@@ -280,7 +279,7 @@ def likers_from_photo(browser, amount=20):
                 "arguments[0].scrollTop = arguments[0].scrollHeight", dialog)
         sleep(1)
         follow_buttons = dialog.find_elements_by_xpath(
-            "//div/div/button[text()='Follow']")
+            "//div/div/span/button[text()='Follow']")
         while (len(follow_buttons) != previous_len) and (len(follow_buttons)<amount):
             if previous_len+10 >= amount:
                 print ("Scrolling finished")
@@ -291,7 +290,7 @@ def likers_from_photo(browser, amount=20):
                 "arguments[0].scrollTop = arguments[0].scrollHeight", dialog)
             sleep(1)
             follow_buttons = dialog.find_elements_by_xpath(
-            "//div/div/button[text()='Follow']")
+            "//div/div/span/button[text()='Follow']")
             print ("Scrolling down... ",previous_len,"->", len(follow_buttons) ," / ",amount) 
 
         person_list = []
@@ -322,7 +321,7 @@ def get_photo_urls_from_profile (browser, username, links_to_return_amount=1, ra
     #input can be both username or user profile url
     username = username_url_to_username(username)
     print ("\nGetting likers from user: ", username,"\n")
-    web_adress_navigator(browser,'https://www.instagram.com/' + username +'/')
+    browser.get('https://www.instagram.com/' + username +'/')
     sleep(1)
     
     photos_a_elems = browser.find_elements_by_xpath("//div/a")

@@ -150,4 +150,3 @@ def select_profile_by_username(cursor, name):
     return profile
 
 
-
