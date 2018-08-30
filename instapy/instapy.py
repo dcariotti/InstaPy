@@ -697,7 +697,7 @@ class InstaPy:
         return self
 
 
-    def follow_by_list(self, followlist, times=1, sleep_delay=600, interact=False):
+    def follow_by_list(self, followlist, times=1, sleep_delay=600, interact=False, type_of_account='all'):
         """Allows to follow by any scrapped list"""
         if not isinstance(followlist, list):
             followlist = [followlist]
@@ -727,7 +727,7 @@ class InstaPy:
                                            self.max_following,
                                            self.min_followers,
                                            self.min_following,
-                                           self.logger)
+                                           self.logger, type_of_account)
             if validation != True or acc_to_follow==self.username:
                 self.logger.info("--> Not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -840,7 +840,7 @@ class InstaPy:
                           tags2=None,
                           amount=50,
                           media=None,
-                          skip_top_posts=True):
+                          skip_top_posts=True, type_of_account='all'):
         """Likes (default) 50 images per given locations"""
         if self.aborting:
             return self
@@ -943,7 +943,7 @@ class InstaPy:
                                                        self.max_following,
                                                        self.min_followers,
                                                        self.min_following,
-                                                       self.logger)
+                                                       self.logger, type_of_account)
                         if validation != True:
                             self.logger.info("--> Not a valid user: {}".format(details))
                             not_valid_users += 1
@@ -1064,7 +1064,7 @@ class InstaPy:
                       locations=None,
                       amount=50,
                       media=None,
-                      skip_top_posts=True):
+                      skip_top_posts=True, type_of_account='all'):
         """Likes (default) 50 images per given locations"""
         if self.aborting:
             return self
@@ -1121,7 +1121,7 @@ class InstaPy:
                                                        self.max_following,
                                                        self.min_followers,
                                                        self.min_following,
-                                                       self.logger)
+                                                       self.logger, type_of_account)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -1238,7 +1238,7 @@ class InstaPy:
                      use_smart_hashtags=False,
                      interact=False,
                      randomize=False,
-                     media=None):
+                     media=None, type_of_account='all'):
         """Likes (default) 50 images per given tag"""
         if self.aborting:
             return self
@@ -1410,7 +1410,7 @@ class InstaPy:
                                                        self.max_following,
                                                        self.min_followers,
                                                        self.min_following,
-                                                       self.logger)
+                                                       self.logger, type_of_account)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -1546,7 +1546,7 @@ class InstaPy:
 
         return self
 
-    def like_by_users(self, usernames, amount=10, randomize=False, media=None):
+    def like_by_users(self, usernames, amount=10, randomize=False, media=None, type_of_account='all'):
         """Likes some amounts of images for each usernames"""
         if self.aborting:
             return self
@@ -1578,7 +1578,7 @@ class InstaPy:
                                            self.max_following,
                                            self.min_followers,
                                            self.min_following,
-                                           self.logger)
+                                           self.logger, type_of_account)
             if not validation:
                 self.logger.info("--> not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -1740,7 +1740,7 @@ class InstaPy:
                           usernames,
                           amount=10,
                           randomize=False,
-                          media=None):
+                          media=None, type_of_account='all'):
         """Likes some amounts of images for each usernames"""
         if self.aborting:
             return self
@@ -1771,7 +1771,7 @@ class InstaPy:
                                            self.max_following,
                                            self.min_followers,
                                            self.min_following,
-                                           self.logger)
+                                           self.logger, type_of_account)
             if not validation:
                 self.logger.info("--> not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -1961,7 +1961,7 @@ class InstaPy:
 
         return self
 
-    def interact_user_followers(self, usernames, amount=10, randomize=False):
+    def interact_user_followers(self, usernames, amount=10, randomize=False, type_of_account='all'):
 
         if self.aborting:
             return self
@@ -2032,7 +2032,7 @@ class InstaPy:
                                self.max_following,
                                self.min_followers,
                                self.min_following,
-                               self.logger)
+                               self.logger, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2078,7 +2078,7 @@ class InstaPy:
         return self
 
 
-    def interact_user_following(self, usernames, amount=10, randomize=False):
+    def interact_user_following(self, usernames, amount=10, randomize=False, type_of_account='all'):
 
         if self.aborting:
             return self
@@ -2151,7 +2151,7 @@ class InstaPy:
                                self.max_following,
                                self.min_followers,
                                self.min_following,
-                               self.logger)
+                               self.logger, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2203,7 +2203,7 @@ class InstaPy:
                               amount=10,
                               randomize=False,
                               interact=False,
-                              sleep_delay=600):
+                              sleep_delay=600, type_of_account='all'):
 
         if not isinstance(usernames, list):
             usernames = [usernames]
@@ -2270,7 +2270,7 @@ class InstaPy:
                                self.max_following,
                                self.min_followers,
                                self.min_following,
-                               self.logger)
+                               self.logger, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2326,7 +2326,7 @@ class InstaPy:
                               amount=10,
                               randomize=False,
                               interact=False,
-                              sleep_delay=600):
+                              sleep_delay=600, type_of_account='all'):
 
         if not isinstance(usernames, list):
             usernames = [usernames]
@@ -2393,7 +2393,7 @@ class InstaPy:
                                self.max_following,
                                self.min_followers,
                                self.min_following,
-                               self.logger)
+                               self.logger, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2515,7 +2515,7 @@ class InstaPy:
                      amount=50,
                      randomize=False,
                      unfollow=False,
-                     interact=False):
+                     interact=False, type_of_account='all'):
         """Like the users feed"""
 
         if self.aborting:
@@ -2602,7 +2602,7 @@ class InstaPy:
                                                                self.max_following,
                                                                self.min_followers,
                                                                self.min_following,
-                                                               self.logger)
+                                                               self.logger, type_of_account)
                                 if validation != True:
                                     self.logger.info(details)
                                     not_valid_users += 1
@@ -2950,7 +2950,7 @@ class InstaPy:
                      skip_top_posts=True,
                      use_smart_hashtags=False,
                      randomize=False,
-                     media=None):
+                     media=None, type_of_account='all'):
         if self.aborting:
             return self
 
@@ -3011,7 +3011,7 @@ class InstaPy:
                                                        self.max_following,
                                                        self.min_followers,
                                                        self.min_following,
-                                                       self.logger)
+                                                       self.logger, type_of_account)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -3048,7 +3048,7 @@ class InstaPy:
     def interact_by_URL(self,
                          urls=[],
                           randomize=False,
-                           interact=False):
+                           interact=False, type_of_account='all'):
         """ Interact on posts at given URLs """
 
         if self.aborting:
@@ -3103,7 +3103,7 @@ class InstaPy:
                                                    self.max_following,
                                                    self.min_followers,
                                                    self.min_following,
-                                                   self.logger)
+                                                   self.logger, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1

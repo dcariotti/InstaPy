@@ -15,7 +15,9 @@ from .time_util import sleep
 from .time_util import sleep_actual
 from .database_engine import get_database
 
-
+import urllib.request
+from bs4 import BeautifulSoup as bs4
+import re
 
 def is_private_profile(browser, logger, following=True):
     is_private = None
@@ -31,6 +33,26 @@ def is_private_profile(browser, logger, following=True):
 
     return is_private
 
+# two types of request_type
+# 1. 'normal_users'
+# 2. 'business'
+def validate_type_of_account(username, request_type):
+    if request_type == 'all':
+        return True
+
+    p = urllib.request.urlopen(urllib.request.Request('https://instagram.com/{}'.format(username), headers={'User-Agent': 'Mozilla/5.0'}))
+    b = bs4(p, 'html.parser')
+    x = b.findAll('script')[3]
+    is_business = re.search('"is_business_account":(.+?),', str(x)).group(1)
+
+    if request_type == 'normal_users' and is_business == 'false':
+        return True
+
+    if request_type == 'business' and is_business == 'true':
+        return True
+
+    return False
+
 def validate_username(browser,
                       username_or_link,
                       own_username,
@@ -42,7 +64,7 @@ def validate_username(browser,
                       max_following,
                       min_followers,
                       min_following,
-                      logger):
+                      logger, type_of_account='all'):
     """Check if we can interact with the user"""
 
     # Some features may not povide `username` and in those cases we will get it from post's page.
@@ -80,6 +102,9 @@ def validate_username(browser,
     if username in blacklist:
         return False, \
                 "---> {} is in blacklist  ~skipping user\n".format(username)
+
+    if not validate_type_of_account(username, type_of_account):
+        return False, "--> {} is not the request type of account\n".format(username)
 
     """Checks the potential of target user by relationship status in order to delimit actions within the desired boundary"""
     if potency_ratio or delimit_by_numbers and (max_followers or max_following or min_followers or min_following):
