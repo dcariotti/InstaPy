@@ -581,7 +581,7 @@ class InstaPy:
         return self
 
 
-    def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=600, interact=False):
+    def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=600, interact=False, type_of_account='all'):
         """ Follows users' commenters """
 
         message = "Starting to follow commenters.."
@@ -604,7 +604,7 @@ class InstaPy:
                 # This way of iterating will prevent sleep interference between functions
                 random.shuffle(commenters)
                 for commenter in commenters[:amount] :
-                    followed = self.follow_by_list(commenter, self.follow_times, sleep_delay, interact)
+                    followed = self.follow_by_list(commenter, self.follow_times, sleep_delay, interact, type_of_account)
                     if followed > 0:
                         followed_all += 1
                         followed_new += 1

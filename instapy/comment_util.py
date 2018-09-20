@@ -14,10 +14,10 @@ import json
 
 def get_comment_input(browser):
     comment_input = browser.find_elements_by_xpath(
-        '//textarea[@placeholder = "Add a comment…"]')
+        '//textarea[@class="Ypffh"]')
     if len(comment_input) <= 0:
         comment_input = browser.find_elements_by_xpath(
-            '//input[@placeholder = "Add a comment…"]')
+            '//input[@class="Ypffh"]')
     return comment_input
 
 
@@ -43,7 +43,7 @@ def comment_image(igbooster, path_for_igbooster, link, browser, username, commen
     rand_comment = emoji.demojize(rand_comment)
     rand_comment = emoji.emojize(rand_comment, use_aliases=True)
 
-    open_comment_section(browser)
+    #open_comment_section(browser)
     comment_input = get_comment_input(browser)
 
     try:

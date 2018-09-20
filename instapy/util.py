@@ -43,8 +43,11 @@ def validate_type_of_account(username, request_type):
     p = urllib.request.urlopen(urllib.request.Request('https://instagram.com/{}'.format(username), headers={'User-Agent': 'Mozilla/5.0'}))
     b = bs4(p, 'html.parser')
     x = b.findAll('script')[3]
-    is_business = re.search('"is_business_account":(.+?),', str(x)).group(1)
-
+    try:
+        is_business = re.search('"is_business_account":(.+?),', str(x)).group(1)
+    except:
+        return False
+        
     if request_type == 'normal_users' and is_business == 'false':
         return True
 
@@ -522,8 +525,12 @@ def format_number(number):
     formatted_num = re.sub(r'(k)$', '00' if '.' in formatted_num else '000', formatted_num)
     formatted_num = re.sub(r'(m)$', '00000' if '.' in formatted_num else '000000', formatted_num)
     formatted_num = formatted_num.replace('.', '')
-    return int(formatted_num)
+    try:
+        return int(formatted_num)
+    except:
+        pass
 
+    return 0
 
 
 def username_url_to_username(username_url):

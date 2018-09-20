@@ -676,8 +676,9 @@ def get_users_through_dialog(browser,
                 quick_index = random.randint(0, len(buttons)-1)
                 quick_button = buttons[quick_index]
                 quick_username = dialog_username_extractor(quick_button)
-                if quick_username[0] not in simulated_list:
-                    quick_follow = follow_through_dialog(browser,
+                try:
+                    if quick_username[0] not in simulated_list:
+                        quick_follow = follow_through_dialog(browser,
                                                          login,
                                                          quick_username,
                                                          quick_button,
@@ -687,8 +688,9 @@ def get_users_through_dialog(browser,
                                                          follow_times,
                                                          logger,
                                                          logfolder)
-                    simulated_list.extend(quick_follow)
-
+                        simulated_list.extend(quick_follow)
+                except:
+                    pass
             simulator_counter = 0
 
     person_list = dialog_username_extractor(buttons)
