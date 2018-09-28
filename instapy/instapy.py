@@ -37,7 +37,7 @@ from .time_util import sleep
 from .time_util import set_sleep_percentage
 from .util import get_active_users
 from .util import validate_username
-from .util import web_adress_navigator
+from .util import web_address_navigator
 from .util import interruption_handler
 from .util import highlight_print
 from .util import dump_record_activity
@@ -949,7 +949,7 @@ class InstaPy:
                             not_valid_users += 1
                             continue
                         else:
-                            web_adress_navigator(self.browser, link)
+                            web_address_navigator(self.browser, link)
 
                         #try to like
                         liked = like_image(self.igbooster, self.path_for_igbooster,
@@ -1127,7 +1127,7 @@ class InstaPy:
                             not_valid_users += 1
                             continue
                         else:
-                            web_adress_navigator(self.browser, link)
+                            web_address_navigator(self.browser, link)
 
                         #try to comment
                         liked = True
@@ -1416,7 +1416,7 @@ class InstaPy:
                             not_valid_users += 1
                             continue
                         else:
-                            web_adress_navigator(self.browser, link)
+                            web_address_navigator(self.browser, link)
 
                         #try to like
                         liked = like_image(self.igbooster, self.path_for_igbooster,
@@ -2608,7 +2608,7 @@ class InstaPy:
                                     not_valid_users += 1
                                     continue
                                 else:
-                                    web_adress_navigator(self.browser, link)
+                                    web_address_navigator(self.browser, link)
 
                                 #try to like
                                 liked = like_image(self.igbooster, self.path_for_igbooster,
@@ -3017,7 +3017,7 @@ class InstaPy:
                             not_valid_users += 1
                             continue
                         else:
-                            web_adress_navigator(self.browser, link)
+                            web_address_navigator(self.browser, link)
 
                         #try to follow
                         followed += follow_user(self.browser,
@@ -3109,7 +3109,7 @@ class InstaPy:
                         not_valid_users += 1
                         continue
                     else:
-                        web_adress_navigator(self.browser, url)
+                        web_address_navigator(self.browser, url)
 
                     #try to like
                     liked = like_image(self.igbooster, self.path_for_igbooster,self.browser,

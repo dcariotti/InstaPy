@@ -19,7 +19,7 @@ from .util import format_number
 from .util import update_activity
 from .util import add_user_to_blacklist
 from .util import click_element
-from .util import web_adress_navigator
+from .util import web_address_navigator
 from .util import interruption_handler
 from .util import get_relationship_counts
 from .print_log_writer import log_followed_pool
@@ -140,7 +140,7 @@ def unfollow(browser,
     user_link ='https://www.instagram.com/{}/'.format(username)
 
     #Check URL of the webpage, if it already is the one to be navigated, then do not navigate to it again
-    web_adress_navigator(browser, user_link)
+    web_address_navigator(browser, user_link)
 
     #check how many poeple we are following
     allfollowers, allfollowing = get_relationship_counts(browser, username, logger)
@@ -554,7 +554,7 @@ def follow_given_user(browser,
     user_link = "https://www.instagram.com/{}/".format(acc_to_follow)
 
     #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
-    web_adress_navigator(browser, user_link)
+    web_address_navigator(browser, user_link)
 
     logger.info('--> {} instagram account is opened...'.format(acc_to_follow))
 

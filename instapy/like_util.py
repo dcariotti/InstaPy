@@ -14,7 +14,7 @@ from .time_util import sleep
 from .util import update_activity
 from .util import add_user_to_blacklist
 from .util import click_element
-from .util import web_adress_navigator
+from .util import web_address_navigator
 
 import re
 from bs4 import BeautifulSoup as bs4
@@ -27,7 +27,7 @@ def get_links_from_feed(browser, amount, num_of_search, logger):
     feeds_link = 'https://www.instagram.com/'
 
     #Check URL of the webpage, if it already is in Feeds page, then do not navigate to it again
-    web_adress_navigator(browser, feeds_link)
+    web_address_navigator(browser, feeds_link)
 
     for i in range(num_of_search + 1):
         browser.execute_script(
@@ -324,7 +324,7 @@ def get_links_for_username(browser,
     user_link = "https://www.instagram.com/{}/".format(username)
 
     #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
-    web_adress_navigator(browser, user_link)
+    web_address_navigator(browser, user_link)
 
     body_elem = browser.find_element_by_tag_name('body')
     abort = True
@@ -455,7 +455,7 @@ def check_link(browser, post_link, dont_like, mandatory_words, ignore_if_contain
     """
 
     #Check URL of the webpage, if it already is post's page, then do not navigate to it again
-    web_adress_navigator(browser, post_link)
+    web_address_navigator(browser, post_link)
         
     """Check if the Post is Valid/Exists"""
     try:
@@ -645,7 +645,7 @@ def get_tags(browser, url):
     """Gets all the tags of the given description in the url"""
 
     #Check URL of the webpage, if it already is the one to be navigated, then do not navigate to it again
-    web_adress_navigator(browser, url)
+    web_address_navigator(browser, url)
 
     graphql = browser.execute_script(
         "return ('graphql' in window._sharedData.entry_data.PostPage[0])")

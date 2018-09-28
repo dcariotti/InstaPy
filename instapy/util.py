@@ -10,6 +10,10 @@ from contextlib import contextmanager
 
 from selenium.common.exceptions import NoSuchElementException
 from selenium.common.exceptions import WebDriverException
+from selenium.common.exceptions import TimeoutException
+from selenium.webdriver.support import expected_conditions as ec
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
 
 from .time_util import sleep
 from .time_util import sleep_actual
@@ -75,7 +79,7 @@ def validate_username(browser,
         link = username_or_link   # if there is a `/` in `username_or_link`, then it is a `link`
 
         #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
-        web_adress_navigator(browser, link)
+        web_address_navigator(browser, link)
 
         try:
             username = browser.execute_script(
@@ -250,7 +254,7 @@ def get_active_users(browser, username, posts, boundary, logger):
     user_link = 'https://www.instagram.com/{}/'.format(username)
 
     #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
-    web_adress_navigator(browser, user_link)
+    web_address_navigator(browser, user_link)
 
     try:
         total_posts = browser.execute_script(
@@ -556,7 +560,7 @@ def get_relationship_counts(browser, username, logger):
     user_link = "https://www.instagram.com/{}/".format(username)
 
     #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
-    web_adress_navigator(browser, user_link)
+    web_address_navigator(browser, user_link)
 
     try:
         followers_count = format_number(browser.find_element_by_xpath("//a[contains"
@@ -616,7 +620,7 @@ def get_relationship_counts(browser, username, logger):
 
 
 
-def web_adress_navigator(browser, link):
+def web_address_navigator(browser, link):
     """Checks and compares current URL of web page and the URL to be navigated and if it is different, it does navigate"""
 
     try:
@@ -742,4 +746,278 @@ def dump_record_activity(profile_name, logger, logfolder):
             # close the open connection
             conn.close()
 
+def ping_server(host, logger):
+    """
+    Return True if host (str) responds to a ping request.
+    Remember that a host may not respond to a ping (ICMP) request even if the host name is valid.
+    """
+    logger.info("Pinging '{}' to check the connectivity...".format(str(host)))
 
+    # ping command count option as function of OS
+    param = "-n" if system().lower()=="windows" else "-c"
+    # building the command. Ex: "ping -c 1 google.com"
+    command = ' '.join(["ping", param, '1', str(host)])
+    need_sh = False if  system().lower()=="windows" else True
+
+    # pinging
+    conn = call(command, shell=need_sh) == 0
+
+    if conn == False:
+        logger.critical("There is no connection to the '{}' server!".format(host))
+        return False
+
+    return True
+
+
+
+def emergency_exit(browser, username, logger):
+    """ Raise emergency if the is no connection to server OR if user is not logged in """
+    using_proxy = True if Settings.connection_type == "proxy" else False
+    # ping the server only if connected directly rather than through a proxy
+    if not using_proxy:
+        server_address = "instagram.com"
+        connection_state = ping_server(server_address, logger)
+        if connection_state == False:
+            return True, "not connected"
+
+    # check if the user is logged in
+    auth_method = "activity counts"
+    login_state = check_authorization(browser, username, auth_method, logger)
+    if login_state == False:
+        return True, "not logged in"
+
+    return False, "no emergency"
+
+
+
+def load_user_id(username, person, logger, logfolder):
+    """ Load the user ID at reqeust from local records """
+    pool_name = "{0}{1}_followedPool.csv".format(logfolder, username)
+    user_id = "undefined"
+
+    try:
+        with open(pool_name, 'r+') as followedPoolFile:
+            reader = csv.reader(followedPoolFile)
+
+            for row in reader:
+                entries = row[0].split(' ~ ')
+                if len(entries) < 3:
+                    # old entry which does not contain an ID
+                    pass
+
+                user_name = entries[1]
+                if user_name == person:
+                    user_id = entries[2]
+                    break
+
+        followedPoolFile.close()
+
+    except BaseException as exc:
+        logger.exception("Failed to load the user ID of '{}'!\n{}".format(person, str(exc).encode("utf-8")))
+
+    return user_id
+
+
+
+def check_authorization(browser, username, method, logger):
+    """ Check if user is NOW logged in """
+    logger.info("Checking if '{}' is logged in...".format(username))
+
+    # different methods can be added in future
+    if method=="activity counts":
+
+        profile_link = 'https://www.instagram.com/{}/'.format(username)
+        web_address_navigator(browser, profile_link)
+
+        # if user is not logged in, `activity_counts` will be `None`- JS `null`
+        try:
+            activity_counts = browser.execute_script(
+                "return window._sharedData.activity_counts")
+
+        except WebDriverException:
+            try:
+                browser.execute_script("location.reload()")
+                update_activity()
+
+                activity_counts = browser.execute_script(
+                                    "return window._sharedData.activity_counts")
+
+            except WebDriverException:
+                activity_counts = None
+
+        # if user is not logged in, `activity_counts_new` will be `None`- JS `null`
+        try:
+            activity_counts_new = browser.execute_script(
+                "return window._sharedData.config.viewer")
+
+        except WebDriverException:
+            try:
+                browser.execute_script("location.reload()")
+                activity_counts_new = browser.execute_script(
+                    "return window._sharedData.config.viewer")
+
+            except WebDriverException:
+                activity_counts_new = None
+
+        if activity_counts is None and activity_counts_new is None:
+            logger.critical("--> '{}' is not logged in!\n".format(username))
+            return False
+
+    return True
+
+
+
+def get_username(browser, logger):
+    """ Get the username of a user from the loaded profile page """
+    try:
+        username = browser.execute_script("return window._sharedData.entry_data."
+                                                "ProfilePage[0].graphql.user.username")
+    except WebDriverException:
+        try:
+            browser.execute_script("location.reload()")
+            update_activity()
+
+            username = browser.execute_script("return window._sharedData.entry_data."
+                                                    "ProfilePage[0].graphql.user.username")
+        except WebDriverException:
+            current_url = get_current_url(browser)
+            logger.info("Failed to get the username from '{}' page".format(current_url or "user"))
+            username = None
+
+    # in future add XPATH ways of getting username
+
+    return username
+
+
+
+def find_user_id(browser, track, username, logger):
+    """  Find the user ID from the loaded page """
+    if track in ["dialog", "profile"]:
+        query = "return window._sharedData.entry_data.ProfilePage[0].graphql.user.id"
+
+    elif track == "post":
+        query = "return window._sharedData.entry_data.PostPage[0].graphql.shortcode_media.owner.id"
+        meta_XP = "//meta[@property='instapp:owner_user_id']"
+
+    failure_message = "Failed to get the user ID of '{}' from {} page!".format(username, track)
+
+    try:
+        user_id = browser.execute_script(query)
+
+    except WebDriverException:
+        try:
+            browser.execute_script("location.reload()")
+            update_activity()
+
+            user_id = browser.execute_script(query)
+
+        except WebDriverException:
+            if track == "post":
+                try:
+                    user_id = browser.find_element_by_xpath(meta_XP).get_attribute("content")
+                    if user_id:
+                        user_id = format_number(user_id)
+
+                    else:
+                        logger.error("{}\t~empty string".format(failure_message))
+                        user_id = None
+
+                except NoSuchElementException:
+                    logger.error(failure_message)
+                    user_id = None
+
+            else:
+                logger.error(failure_message)
+                user_id = None
+
+    return user_id
+
+
+
+@contextmanager
+def new_tab(browser):
+    """ USE once a host tab must remain untouched and yet needs extra data- get from guest tab """
+    try:
+        # add a guest tab
+        browser.execute_script("window.open()")
+        sleep(1)
+        # switch to the guest tab
+        browser.switch_to.window(browser.window_handles[1])
+        sleep(2)
+        yield
+
+    finally:
+        # close the guest tab
+        browser.execute_script("window.close()")
+        sleep(1)
+        # return to the host tab
+        browser.switch_to.window(browser.window_handles[0])
+        sleep(2)
+
+
+
+def explicit_wait(browser, track, ec_params, logger, timeout=35, notify=True):
+    """
+    Explicitly wait until expected condition validates
+
+    :param browser: webdriver instance
+    :param track: short name of the expected condition
+    :param ec_params: expected condition specific parameters - [param1, param2]
+    :param logger: the logger instance
+    """
+    # list of available tracks:
+    # <https://seleniumhq.github.io/selenium/docs/api/py/webdriver_support/
+    # selenium.webdriver.support.expected_conditions.html>
+
+    if not isinstance(ec_params, list):
+        ec_params = [ec_params]
+
+
+    # find condition according to the tracks
+    if track == "VOEL":
+        elem_address, find_method = ec_params
+        ec_name = "visibility of element located"
+
+        find_by = (By.XPATH if find_method == "XPath" else
+                   By.CSS_SELECTOR if find_method == "CSS" else
+                   By.CLASS_NAME)
+        locator = (find_by, elem_address)
+        condition = ec.visibility_of_element_located(locator)
+
+    elif track == "TC":
+        expect_in_title = ec_params[0]
+        ec_name = "title contains '{}' string".format(expect_in_title)
+
+        condition = ec.title_contains(expect_in_title)
+
+    elif track == "PFL":
+        ec_name = "page fully loaded"
+        condition = (lambda browser: browser.execute_script("return document.readyState")
+                                                in ["complete" or "loaded"])
+
+    # generic wait block
+    try:
+        wait = WebDriverWait(browser, timeout)
+        result = wait.until(condition)
+
+    except TimeoutException:
+        if notify == True:
+            logger.info("Timed out with failure while explicitly waiting until {}!\n"
+                            .format(ec_name))
+        return False
+
+    return result
+
+def get_current_url(browser):
+    """ Get URL of the loaded webpage """
+    try:
+        current_url = browser.execute_script("return window.location.href")
+
+    except WebDriverException:
+        try:
+            current_url = browser.current_url
+
+        except WebDriverException:
+            current_url = None
+
+    return current_url
