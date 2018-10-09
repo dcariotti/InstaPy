@@ -74,6 +74,7 @@ def get_following_status(browser, person, logger):
     try:
         follow_button = browser.find_element_by_xpath(
             "//*[contains(text(), 'Follow')]")
+        
         if follow_button.text == 'Following':
             following = "Following"
         else:
@@ -94,6 +95,7 @@ def get_following_status(browser, person, logger):
 
 def unfollow(browser,
              username,
+             api,
              amount,
              customList,
              InstapyFollowed,
@@ -178,7 +180,7 @@ def unfollow(browser,
                                                 False,
                                                  True,
                                                   logger,
-                                                   logfolder)
+                                                   logfolder, api)
 
         #pick only the users in the right track- ["all" or "nonfollowers"] for `customList` and `InstapyFollowed` technics
         if customList == True or InstapyFollowed == True:
@@ -253,62 +255,55 @@ def unfollow(browser,
                     browser.get('https://www.instagram.com/' + person)
                     sleep(2)
 
-                    try:
-                        following, follow_button = get_following_status(browser, person, logger)
-                    except:
-                        logger.error(
-                            '--> Unfollow error with {},'
-                            ' maybe no longer exists...'
-                                .format(person.encode('utf-8')))
-                        continue
-
+                    # try:
+                    #     following, follow_button = get_following_status(browser, person, logger)
+                    # except Exception as e:
+                    #     print(e)
+                    #     logger.error(
+                    #         '--> Unfollow error with {},'
+                    #         ' maybe no longer exists...'
+                    #             .format(person.encode('utf-8')))
+                    #     continue
+                    following = True
                     if following:
                         # click the button
-                        click_element(browser, follow_button) # follow_button.click()
+                        # click_element(browser, follow_button) # follow_button.click()
+                        try:
+                            browser.find_element_by_xpath("//button[contains(text(), 'Following')]").click()
+                        except Exception as e:
+                            print(e)
+                            continue
                         sleep(4)
 
                         try:
                             browser.find_element_by_xpath("//button[contains(text(), 'Unfollow')]").click()
                             sleep(4)
-                        except Exception:
-                            pass
+                        except:
+                            continue
 
-                        # double check not following
-                        follow_button = browser.find_element_by_xpath(
-                            "//*[contains(text(), 'Follow')]")
-
-                        if follow_button.text in ['Follow','Follow Back']:
-
-                            unfollowNum += 1
-                            sleep_counter += 1
-
-                            update_activity('unfollows')
-
-                            if person in relationship_data[username]["all_following"]:
-                                relationship_data[username]["all_following"].remove(person)
-
-                            logger.info(
-                                '--> Ongoing Unfollow From InstaPy {}/{},'
-                                ' now unfollowing: {}'
-                                .format(str(unfollowNum), amount, person.encode('utf-8')))
-
-                            delete_line_from_file('{0}{1}_followedPool.csv'.format(logfolder, username), person +
-                                              ",\n", logger)
-
-                            print('')
-                            sleep(15)
-
-                        else:
-                            logger.error("Unfollow error!  ~username {} might be blocked\n".format(username))
-                            # stop the loop
-                            break
+                        update_activity('unfollows')
+                        unfollowNum += 1
+                        if person in relationship_data[username]["all_following"]:
+                            relationship_data[username]["all_following"].remove(person)
+                        logger.info(
+                            '--> Ongoing Unfollow From InstaPy {}/{},'
+                            ' now unfollowing: {}'
+                            .format(str(unfollowNum), amount, person.encode('utf-8')))
+                        delete_line_from_file('{0}{1}_followedPool.csv'.format(logfolder, username), person +
+                                          ",\n", logger)
+                        print('')
+                        sleep(15)
                     else:
                         # this user found in our list of unfollow but is not followed
                         if follow_button is None or follow_button.text not in ['Follow', 'Follow Back']:
                             log_uncertain_unfollowed_pool(username, person, logger, logfolder)
                         # check we are now logged in
-                        valid_connection = browser.execute_script(
-                            "return window._sharedData.""activity_counts")
+                        try:
+                            valid_connection = browser.execute_script(
+                                "return window._sharedData.""activity_counts")
+                        except:
+                            logger.warning('--> Invalid user')
+                            continue
                         if not valid_connection:
                             # if no valid connection
                             msg = '--> user:{} have no valid_connection wait 3600'.format(person)

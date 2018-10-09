@@ -11,6 +11,7 @@ from .util import web_address_navigator
 from .util import get_relationship_counts
 from .util import interruption_handler
 
+from InstagramAPI import InstagramAPI
 
 def get_followers(browser,
                    username,
@@ -495,7 +496,7 @@ def get_nonfollowers(browser,
                         live_match,
                          store_locally,
                           logger,
-                           logfolder):
+                           logfolder, api):
     """ Finds Nonfollowers of a given user """
 
     if username is None or type(username)!=str:
@@ -503,23 +504,26 @@ def get_nonfollowers(browser,
         return []
 
     #get `Followers` data
-    all_followers = get_followers(browser,
-                                   username,
-                                    "full",
-                                     relationship_data,
-                                      live_match,
-                                       store_locally,
-                                        logger,
-                                         logfolder)
+    all_followers = [i['username'] for i in api.getTotalFollowers(api.username_id)]
+    # all_followers = get_followers(browser,
+    #                                username,
+    #                                 "full",
+    #                                  relationship_data,
+    #                                   live_match,
+    #                                    store_locally,
+    #                                     logger,
+    #                                      logfolder)
     #get `Following` data
-    all_following = get_following(browser,
-                                   username,
-                                    "full",
-                                     relationship_data,
-                                      live_match,
-                                       store_locally,
-                                        logger,
-                                         logfolder)
+    all_following = [i['username'] for i in api.getTotalFollowings(api.username_id)]
+
+    # all_following = get_following(browser,
+    #                                username,
+    #                                 "full",
+    #                                  relationship_data,
+    #                                   live_match,
+    #                                    store_locally,
+    #                                     logger,
+    #                                      logfolder)
 
     #using this approach we can preserve the order of elements to be used with `FIFO`, `LIFO` or `RANDOM` styles
     nonfollowers = [user for user in all_following if user not in all_followers]

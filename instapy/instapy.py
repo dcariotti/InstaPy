@@ -2474,6 +2474,7 @@ class InstaPy:
         try:
             unfollowNumber = unfollow(self.browser,
                                       self.username,
+                                      self.ig_api,
                                       amount,
                                       customList,
                                       InstapyFollowed,
@@ -2875,7 +2876,7 @@ class InstaPy:
                                            live_match,
                                             store_locally,
                                              self.logger,
-                                              self.logfolder)
+                                              self.logfolder, self.password)
 
         return nonfollowers
 
