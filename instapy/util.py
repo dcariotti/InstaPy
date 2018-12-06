@@ -87,7 +87,8 @@ def validate_username(browser,
                       logger, type_of_account='all'):
     """Check if we can interact with the user"""
 
-    skip_business = type_of_account in ['all', 'business']
+    potency_ratio = False
+    skip_business = type_of_account not in ['all', 'business']
     # some features may not provide `username` and in those cases we will get it from post's page.
     if '/' in username_or_link:
         link = username_or_link  # if there is a `/` in `username_or_link`, then it is a `link`

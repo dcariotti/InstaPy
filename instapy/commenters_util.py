@@ -8,6 +8,7 @@ from selenium.webdriver.common.keys import Keys
 from .util import get_number_of_posts
 from .util import click_element
 from .util import update_activity
+from .util import web_address_navigator
 from .util import username_url_to_username
 import random
 
@@ -234,87 +235,101 @@ def extract_information(browser, username, daysold, max_pic):
 def users_liked (browser, photo_url, amount=100):
     photo_likers = []
     try:
-        browser.get(photo_url)  
-        photo_likers = likers_from_photo(browser, amount)   
-        sleep(2)  
+        web_address_navigator(browser,photo_url)
+        photo_likers = likers_from_photo(browser, amount)
+        sleep(2)
     except NoSuchElementException:
         print('Could not get information from post: ' + photo_url,' nothing to return')
-            
+
     return photo_likers
-    
-def likers_from_photo(browser, amount=20):                                       
+
+
+
+def likers_from_photo(browser, amount=20):
 
     user_liked_list = []
+    liked_counter_button = "//div/article/div[2]/section[2]/div/div/a"
+
     try:
-        liked_this = browser.find_elements_by_xpath("//div/article/div[2]/section[2]/div/a")
+        liked_this = browser.find_elements_by_xpath(liked_counter_button)
         likers = []
+
         for liker in liked_this:
             if "like this" not in liker.text:
-                likers.append(liker.text)        
-        if check_exists_by_xpath(browser, "//div/article/div[2]/section[2]/div/a"):
+                likers.append(liker.text)
+
+        if check_exists_by_xpath(browser, liked_counter_button):
             if "likes" not in liked_this[0].text:
                 print ("Few likes, not guaranteed you don't follow these likers already.\nGot photo likers: ", likers," \n")
-                return likers 
+                return likers
         else:
             print ("Video has no likes?")
             print ("Moving on..")
             return []
-            
+
         sleep(1)
         click_element(browser, liked_this[0])
         print ("opening likes")
         # update server calls
-        #update_activity()    
-            
+        #update_activity()
+
         sleep(1)
-    
+
         # find dialog box
         dialog = browser.find_element_by_xpath(
             "//div[text()='Likes']/following-sibling::div")
-        
+
         # scroll down the page
         previous_len = -1
         follow_buttons = []
         browser.execute_script(
                 "arguments[0].scrollTop = arguments[0].scrollHeight", dialog)
+        update_activity()
         sleep(1)
+
         follow_buttons = dialog.find_elements_by_xpath(
-            "//div/div/span/button[text()='Follow']")
+            "//div/div/button[text()='Follow']")
+
         while (len(follow_buttons) != previous_len) and (len(follow_buttons)<amount):
             if previous_len+10 >= amount:
                 print ("Scrolling finished")
                 sleep(1)
                 break
+
             previous_len = len(follow_buttons)
             browser.execute_script(
                 "arguments[0].scrollTop = arguments[0].scrollHeight", dialog)
+            update_activity()
             sleep(1)
+
             follow_buttons = dialog.find_elements_by_xpath(
-            "//div/div/span/button[text()='Follow']")
-            print ("Scrolling down... ",previous_len,"->", len(follow_buttons) ," / ",amount) 
+            "//div/div/button[text()='Follow']")
+            print ("Scrolling down... ",previous_len,"->", len(follow_buttons) ," / ",amount)
 
         person_list = []
+
         for person in follow_buttons:
             username_url = person.find_element_by_xpath("../../../*").find_element_by_tag_name("a").get_attribute('href')
             username = username_url_to_username(username_url)
             person_list.append(username)
-        
-        random.shuffle(person_list)     
+
+        random.shuffle(person_list)
         sleep(1)
+
         try:
             close = browser.find_element_by_xpath("//span[text()='Close']")
             click_element(browser, close)
             print ("Like window closed")
-        except:
+
+        except Exception:
             pass
-               
-        print ("\nGot ",len(person_list)," likers shuffled randomly, who you can follow:\n", person_list, "\n")      
-        return person_list    
-        sleep(2)
-    except Exception as e:
-        print ("Some problem")
-        print (e)
-        return []              
+
+        print("Got {} likers shuffled randomly whom you can follow:\n{}\n".format(len(person_list), person_list))
+        return person_list
+
+    except Exception as exc:
+        print ("Some problem occred!\n\t{}".format(str(exc).encode("utf-8")))
+        return []            
         
 def get_photo_urls_from_profile (browser, username, links_to_return_amount=1, randomize=True):
     #try:   

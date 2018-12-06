@@ -595,6 +595,9 @@ class InstaPy:
     def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=600, interact=False, type_of_account='all'):
         """ Follows users' commenters """
 
+        if self.aborting:
+            return self
+
         message = "Starting to follow commenters.."
         highlight_print(self.username, message, "feature", "info", self.logger)
 
@@ -603,29 +606,61 @@ class InstaPy:
 
         followed_all = 0
         followed_new = 0
-        relax_point = random.randint(7, 14)   # you can use some plain value `10` instead of this quitely randomized score
+
+        # hold the current global values for differentiating at the end
+        already_followed_init = self.already_followed
+        not_valid_users_init = self.not_valid_users
+        liked_init = self.liked_img
+        already_liked_init = self.already_liked
+        commented_init = self.commented
+        inap_img_init = self.inap_img
+
+        relax_point = random.randint(7,
+                                     14)  # you can use some plain value `10` instead of this quitely randomized score
+        self.quotient_breach = False
 
         for username in usernames:
-            self.logger.info("Following commenters of '{}' from {} pictures in last {} days...\nScrapping wall..".format(username, max_pic, daysold))
+            if self.quotient_breach:
+                break
+
+            self.logger.info(
+                "Following commenters of '{}' from {} pictures in last {} days...\nScrapping wall..".format(username,
+                                                                                                            max_pic,
+                                                                                                            daysold))
             commenters = extract_information(self.browser, username, daysold, max_pic)
 
-            if len(commenters)>0:
+            if len(commenters) > 0:
                 self.logger.info("Going to follow top {} users.\n".format(amount))
                 sleep(1)
                 # This way of iterating will prevent sleep interference between functions
                 random.shuffle(commenters)
-                for commenter in commenters[:amount] :
-                    followed = self.follow_by_list(commenter, self.follow_times, sleep_delay, interact, type_of_account)
+                for commenter in commenters[:amount]:
+                    if self.quotient_breach:
+                        self.logger.warning(
+                            "--> Follow quotient reached its peak!"
+                            "\t~leaving Follow-Commenters activity\n")
+                        break
+
+                    with self.feature_in_feature("follow_by_list", True):
+                        followed = self.follow_by_list(commenter,
+                                                       self.follow_times,
+                                                       sleep_delay,
+                                                       interact)
                     if followed > 0:
                         followed_all += 1
                         followed_new += 1
-                        self.logger.info('Total Follow: {}'.format(str(followed_all)))
+                        self.logger.info("Total Follow: {}\n".format(str(followed_all)))
                         # Take a break after a good following
                         if followed_new >= relax_point:
-                            delay_random = random.randint(ceil(sleep_delay*0.85), ceil(sleep_delay*1.14))
-                            self.logger.info('------=>  Followed {} new users ~sleeping about {}'.format(followed_new,
-                                                                        '{} seconds'.format(delay_random) if delay_random < 60 else
-                                                                        '{} minutes'.format(float("{0:.2f}".format(delay_random/60)))))
+                            delay_random = random.randint(
+                                ceil(sleep_delay * 0.85),
+                                ceil(sleep_delay * 1.14))
+                            sleep_time = ("{} seconds".format(delay_random) if
+                                          delay_random < 60 else
+                                          "{} minutes".format(truncate_float(
+                                              delay_random / 60, 2)))
+                            self.logger.info("------=>  Followed {} new users ~sleeping about {}"
+                                             .format(followed_new, sleep_time))
                             sleep(delay_random)
                             relax_point = random.randint(7, 14)
                             followed_new = 0
@@ -636,12 +671,33 @@ class InstaPy:
 
             sleep(1)
 
-        self.logger.info("Finished following commenters!\n")
+        self.logger.info("Finished following Commenters!\n")
+
+        # find the feature-wide action sizes by taking a difference
+        already_followed = (self.already_followed - already_followed_init)
+        not_valid_users = (self.not_valid_users - not_valid_users_init)
+        liked = (self.liked_img - liked_init)
+        already_liked = (self.already_liked - already_liked_init)
+        commented = (self.commented - commented_init)
+        inap_img = (self.inap_img - inap_img_init)
+
+        # print results
+        self.logger.info("Followed: {}".format(followed_all))
+        self.logger.info("Already followed: {}".format(already_followed))
+        self.logger.info("Not valid users: {}".format(not_valid_users))
+
+        if interact == True:
+            print('')
+            # print results out of interactions
+            self.logger.info("Liked: {}".format(liked))
+            self.logger.info("Already Liked: {}".format(already_liked))
+            self.logger.info("Commented: {}".format(commented))
+            self.logger.info("Inappropriate: {}".format(inap_img))
 
         return self
 
 
-    def follow_likers (self, usernames, urls=None, amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
+    def follow_likers (self, usernames, urls=None, type_of_account='all', amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
         """ Follows users from urls """
         if urls:
             if not isinstance(urls, list):
@@ -667,46 +723,98 @@ class InstaPy:
         if not isinstance(usernames, list):
             usernames = [usernames]
 
-        if photos_grab_amount>12:
+        if photos_grab_amount > 12:
             self.logger.info("Sorry, you can only grab likers from first 12 photos for given username now.\n")
             photos_grab_amount = 12
 
         followed_all = 0
         followed_new = 0
-        relax_point = random.randint(7, 14)   # you can use some plain value `10` instead of this quitely randomized score
+
+        # hold the current global values for differentiating at the end
+        already_followed_init = self.already_followed
+        not_valid_users_init = self.not_valid_users
+        liked_init = self.liked_img
+        already_liked_init = self.already_liked
+        commented_init = self.commented
+        inap_img_init = self.inap_img
+
+        relax_point = random.randint(7,
+                                     14)  # you can use some plain value `10` instead of this quitely randomized score
+        self.quotient_breach = False
 
         for username in usernames:
+            if self.quotient_breach:
+                break
+
             photo_urls = get_photo_urls_from_profile(self.browser, username, photos_grab_amount, randomize)
             sleep(1)
             if not isinstance(photo_urls, list):
                 photo_urls = [photo_urls]
 
             for photo_url in photo_urls:
+                if self.quotient_breach:
+                    break
+
                 likers = users_liked(self.browser, photo_url, follow_likers_per_photo)
                 # This way of iterating will prevent sleep interference between functions
                 random.shuffle(likers)
 
-                for liker in likers[:follow_likers_per_photo] :
-                    followed = self.follow_by_list(liker, self.follow_times, sleep_delay, interact)
+                for liker in likers[:follow_likers_per_photo]:
+                    if self.quotient_breach:
+                        self.logger.warning(
+                            "--> Follow quotient reached its peak!"
+                            "\t~leaving Follow-Likers activity\n")
+                        break
+
+                    with self.feature_in_feature("follow_by_list", True):
+                        followed = self.follow_by_list(liker,
+                                                       self.follow_times,
+                                                       sleep_delay,
+                                                       interact, type_of_account)
                     if followed > 0:
                         followed_all += 1
                         followed_new += 1
-                        self.logger.info('Total Follow: {}'.format(str(followed_all)))
+                        self.logger.info("Total Follow: {}\n".format(str(followed_all)))
                         # Take a break after a good following
                         if followed_new >= relax_point:
-                            delay_random = random.randint(ceil(sleep_delay*0.85), ceil(sleep_delay*1.14))
-                            self.logger.info('------=>  Followed {} new users ~sleeping about {}'.format(followed_new,
-                                                                        '{} seconds'.format(delay_random) if delay_random < 60 else
-                                                                        '{} minutes'.format(float("{0:.2f}".format(delay_random/60)))))
+                            delay_random = random.randint(
+                                ceil(sleep_delay * 0.85),
+                                ceil(sleep_delay * 1.14))
+                            sleep_time = ("{} seconds".format(delay_random) if
+                                          delay_random < 60 else
+                                          "{} minutes".format(truncate_float(
+                                              delay_random / 60, 2)))
+                            self.logger.info("------=>  Followed {} new users ~sleeping about {}"
+                                             .format(followed_new, sleep_time))
                             sleep(delay_random)
                             relax_point = random.randint(7, 14)
-                            followed_new=0
+                            followed_new = 0
                             pass
 
-        self.logger.info("Finished following likers!\n")
+        self.logger.info("Finished following Likers!\n")
+
+        # find the feature-wide action sizes by taking a difference
+        already_followed = (self.already_followed - already_followed_init)
+        not_valid_users = (self.not_valid_users - not_valid_users_init)
+        liked = (self.liked_img - liked_init)
+        already_liked = (self.already_liked - already_liked_init)
+        commented = (self.commented - commented_init)
+        inap_img = (self.inap_img - inap_img_init)
+
+        # print results
+        self.logger.info("Followed: {}".format(followed_all))
+        self.logger.info("Already followed: {}".format(already_followed))
+        self.logger.info("Not valid users: {}".format(not_valid_users))
+
+        if interact == True:
+            print('')
+            # print results out of interactions
+            self.logger.info("Liked: {}".format(liked))
+            self.logger.info("Already Liked: {}".format(already_liked))
+            self.logger.info("Commented: {}".format(commented))
+            self.logger.info("Inappropriate: {}".format(inap_img))
 
         return self
-
 
     def follow_by_list(self, followlist, times=1, sleep_delay=600, interact=False, type_of_account='all'):
         """Allows to follow by any scrapped list"""
@@ -754,7 +862,7 @@ class InstaPy:
 
             if not users_validated:
                 # Verify if the user should be followed
-                validation, details = self.validate_user_call(acc_to_follow)
+                validation, details = self.validate_user_call(acc_to_follow, type_of_account)
                 if validation != True or acc_to_follow == self.username:
                     self.logger.info("--> Not a valid user: {}".format(details))
                     not_valid_users += 1
@@ -1000,18 +1108,7 @@ class InstaPy:
 
                     if not inappropriate and self.liking_approved:
                         #validate user
-                        validation, details = validate_username(self.browser,
-                                                       user_name,
-                                                       self.username,
-                                                       self.ignore_users,
-                                                       self.blacklist,
-                                                       self.potency_ratio,
-                                                       self.delimit_by_numbers,
-                                                       self.max_followers,
-                                                       self.max_following,
-                                                       self.min_followers,
-                                                       self.min_following,
-                                                       self.logger, type_of_account)
+                        validation, details = self.validate_user_call(user_name, type_of_account)
                         if validation != True:
                             self.logger.info("--> Not a valid user: {}".format(details))
                             not_valid_users += 1
@@ -1092,12 +1189,16 @@ class InstaPy:
                                 not follow_restriction("read", user_name,
                                  self.follow_times, self.logger)):
 
-                                followed += follow_user(self.browser,
-                                                        self.username,
-                                                        user_name,
-                                                        self.blacklist,
-                                                        self.logger,
-                                                        self.logfolder)
+                                follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                                if follow_state == True:
+                                    followed += 1
 
                             else:
                                 self.logger.info('--> Not following')
@@ -1178,18 +1279,7 @@ class InstaPy:
 
                     if not inappropriate:
                         #validate user
-                        validation, details = validate_username(self.browser,
-                                                       user_name,
-                                                       self.username,
-                                                       self.ignore_users,
-                                                       self.blacklist,
-                                                       self.potency_ratio,
-                                                       self.delimit_by_numbers,
-                                                       self.max_followers,
-                                                       self.max_following,
-                                                       self.min_followers,
-                                                       self.min_following,
-                                                       self.logger, type_of_account)
+                        validation, details = self.validate_user_call(user_name, type_of_account)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -1265,12 +1355,16 @@ class InstaPy:
                                 not follow_restriction("read", user_name,
                                  self.follow_times, self.logger)):
 
-                                followed += follow_user(self.browser,
-                                                        self.username,
-                                                        user_name,
-                                                        self.blacklist,
-                                                        self.logger,
-                                                        self.logfolder)
+                                follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                                if follow_state == True:
+                                    followed += 1
 
                             else:
                                 self.logger.info('--> Not following')
@@ -1467,18 +1561,7 @@ class InstaPy:
 
                     if not inappropriate and self.liking_approved:
                         #validate user
-                        validation, details = validate_username(self.browser,
-                                                       user_name,
-                                                       self.username,
-                                                       self.ignore_users,
-                                                       self.blacklist,
-                                                       self.potency_ratio,
-                                                       self.delimit_by_numbers,
-                                                       self.max_followers,
-                                                       self.max_following,
-                                                       self.min_followers,
-                                                       self.min_following,
-                                                       self.logger, type_of_account)
+                        validation, details = self.validate_user_call(user_name, type_of_account)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -1579,12 +1662,16 @@ class InstaPy:
                                 not follow_restriction("read", user_name,
                                  self.follow_times, self.logger)):
 
-                                followed += follow_user(self.browser,
-                                                        self.username,
-                                                        user_name,
-                                                        self.blacklist,
-                                                        self.logger,
-                                                        self.logfolder)
+                                follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                                if follow_state == True:
+                                    followed += 1
                             else:
                                 self.logger.info('--> Not following')
                                 sleep(1)
@@ -1635,18 +1722,7 @@ class InstaPy:
             self.logger.info('--> {}'.format(username.encode('utf-8')))
             following = random.randint(0, 100) <= self.follow_percentage
 
-            validation, details = validate_username(self.browser,
-                                           username,
-                                           self.username,
-                                           self.ignore_users,
-                                           self.blacklist,
-                                           self.potency_ratio,
-                                           self.delimit_by_numbers,
-                                           self.max_followers,
-                                           self.max_following,
-                                           self.min_followers,
-                                           self.min_following,
-                                           self.logger, type_of_account)
+            validation, details = self.validate_user_call(username, type_of_account)
             if not validation:
                 self.logger.info("--> not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -1669,12 +1745,16 @@ class InstaPy:
                 following and
                 not follow_restriction("read", username,
                  self.follow_times, self.logger)):
-                followed += follow_user(self.browser,
-                                        self.username,
-                                        username,
-                                        self.blacklist,
-                                        self.logger,
-                                        self.logfolder)
+                follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                if follow_state == True:
+                    followed += 1
             else:
                 self.logger.info('--> Not following')
                 sleep(1)
@@ -1828,18 +1908,7 @@ class InstaPy:
                 'Username [{}/{}]'.format(index + 1, len(usernames)))
             self.logger.info('--> {}'.format(username.encode('utf-8')))
 
-            validation, details = validate_username(self.browser,
-                                           username,
-                                           self.username,
-                                           self.ignore_users,
-                                           self.blacklist,
-                                           self.potency_ratio,
-                                           self.delimit_by_numbers,
-                                           self.max_followers,
-                                           self.max_following,
-                                           self.min_followers,
-                                           self.min_following,
-                                           self.logger, type_of_account)
+            validation, details = self.validate_user_call(username, type_of_account)
             if not validation:
                 self.logger.info("--> not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -1894,13 +1963,16 @@ class InstaPy:
                             not follow_restriction("read", username,
                              self.follow_times, self.logger)):
 
-                            followed += follow_user(
-                                self.browser,
-                                self.username,
-                                username,
-                                self.blacklist,
-                                self.logger,
-                                self.logfolder)
+                            follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                            if follow_state == True:
+                                followed += 1
 
                             following = False
                         else:
@@ -2089,18 +2161,7 @@ class InstaPy:
                 self.logger.info("User '{}' [{}/{}]".format((person), index+1, len(person_list)))
 
                 if person in simulated_list:
-                    validation, details = validate_username(self.browser,
-                               person,
-                               self.username,
-                               self.ignore_users,
-                               self.blacklist,
-                               self.potency_ratio,
-                               self.delimit_by_numbers,
-                               self.max_followers,
-                               self.max_following,
-                               self.min_followers,
-                               self.min_following,
-                               self.logger, type_of_account)
+                    validation, details = self.validate_user_call(person, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2208,18 +2269,7 @@ class InstaPy:
                 self.logger.info("User '{}' [{}/{}]".format((person), index+1, len(person_list)))
 
                 if person in simulated_list:
-                    validation, details = validate_username(self.browser,
-                               person,
-                               self.username,
-                               self.ignore_users,
-                               self.blacklist,
-                               self.potency_ratio,
-                               self.delimit_by_numbers,
-                               self.max_followers,
-                               self.max_following,
-                               self.min_followers,
-                               self.min_following,
-                               self.logger, type_of_account)
+                    validation, details = self.validate_user_call(person, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2786,18 +2836,7 @@ class InstaPy:
 
                             if not inappropriate and self.liking_approved:
                                 #validate user
-                                validation, details = validate_username(self.browser,
-                                                               user_name,
-                                                               self.username,
-                                                               self.ignore_users,
-                                                               self.blacklist,
-                                                               self.potency_ratio,
-                                                               self.delimit_by_numbers,
-                                                               self.max_followers,
-                                                               self.max_following,
-                                                               self.min_followers,
-                                                               self.min_following,
-                                                               self.logger, type_of_account)
+                                validation, details = self.validate_user_call(user_name, type_of_account)
                                 if validation != True:
                                     self.logger.info(details)
                                     not_valid_users += 1
@@ -2899,13 +2938,16 @@ class InstaPy:
                                         following and
                                         not follow_restriction("read", user_name,
                                          self.follow_times, self.logger)):
-                                        followed += follow_user(
-                                            self.browser,
-                                            self.username,
-                                            user_name,
-                                            self.blacklist,
-                                            self.logger,
-                                            self.logfolder)
+                                        follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                                        if follow_state == True:
+                                            followed += 1
                                     else:
                                         self.logger.info('--> Not following')
                                         sleep(1)
@@ -3175,10 +3217,13 @@ class InstaPy:
 
         # deletes white spaces in tags
         tags = [tag.strip() for tag in tags]
-
         tags = tags or []
+        self.quotient_breach = False
 
         for index, tag in enumerate(tags):
+            if self.quotient_breach:
+                break
+
             self.logger.info('Tag [{}/{}]'.format(index + 1, len(tags)))
             self.logger.info('--> {}'.format(tag.encode('utf-8')))
 
@@ -3195,6 +3240,15 @@ class InstaPy:
                 continue
 
             for i, link in enumerate(links):
+                if (self.jumps["consequent"]["follows"]
+                        >= self.jumps["limit"]["follows"]):
+                    self.logger.warning("--> Follow quotient reached its peak!"
+                                        "\t~leaving Follow-By-Tags activity\n")
+                    self.quotient_breach = True
+                    # reset jump counter after a breach report
+                    self.jumps["consequent"]["follows"] = 0
+                    break
+
                 self.logger.info('[{}/{}]'.format(i + 1, len(links)))
                 self.logger.info(link)
 
@@ -3204,24 +3258,18 @@ class InstaPy:
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
                                    self.ignore_if_contains,
                                    self.logger)
                     )
 
                     if not inappropriate:
-                        #validate user
-                        validation, details = validate_username(self.browser,
-                                                       user_name,
-                                                       self.username,
-                                                       self.ignore_users,
-                                                       self.blacklist,
-                                                       self.potency_ratio,
-                                                       self.delimit_by_numbers,
-                                                       self.max_followers,
-                                                       self.max_following,
-                                                       self.min_followers,
-                                                       self.min_following,
-                                                       self.logger, type_of_account)
+                        # validate user
+                        validation, details = self.validate_user_call(
+                            user_name, type_of_account)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -3229,17 +3277,29 @@ class InstaPy:
                         else:
                             web_address_navigator(self.browser, link)
 
-                        #try to follow
-                        followed += follow_user(self.browser,
-                                                self.username,
-                                                user_name,
-                                                self.blacklist,
-                                                self.logger,
-                                                self.logfolder)
+                        # try to follow
+                        follow_state, msg = follow_user(self.browser,
+                                                        "post",
+                                                        self.username,
+                                                        user_name,
+                                                        None,
+                                                        self.blacklist,
+                                                        self.logger,
+                                                        self.logfolder)
+                        if follow_state == True:
+                            followed += 1
+                            # reset jump counter after a successful follow
+                            self.jumps["consequent"]["follows"] = 0
+
+                        elif msg == "jumped":
+                            # will break the loop after certain consecutive jumps
+                            self.jumps["consequent"]["follows"] += 1
+
                     else:
                         self.logger.info(
                             '--> User not followed: {}'.format(reason))
                         inap_img += 1
+
                 except NoSuchElementException as err:
                     self.logger.error('Invalid Page: {}'.format(err))
 
@@ -3302,18 +3362,7 @@ class InstaPy:
 
                 if not inappropriate and self.liking_approved:
                     #validate user
-                    validation, details = validate_username(self.browser,
-                                                   user_name,
-                                                   self.username,
-                                                   self.ignore_users,
-                                                   self.blacklist,
-                                                   self.potency_ratio,
-                                                   self.delimit_by_numbers,
-                                                   self.max_followers,
-                                                   self.max_following,
-                                                   self.min_followers,
-                                                   self.min_following,
-                                                   self.logger, type_of_account)
+                    validation, details = self.validate_user_call(user_name, type_of_account)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -3388,12 +3437,16 @@ class InstaPy:
                             not follow_restriction("read", user_name,
                              self.follow_times, self.logger)):
 
-                            followed += follow_user(self.browser,
-                                                    self.username,
-                                                    user_name,
-                                                    self.blacklist,
-                                                    self.logger,
-                                                    self.logfolder)
+                            follow_state, msg = follow_user(self.browser,
+                                                                "post",
+                                                                self.username,
+                                                                user_name,
+                                                                None,
+                                                                self.blacklist,
+                                                                self.logger,
+                                                                self.logfolder)
+                            if follow_state == True:
+                                followed += 1
                         else:
                             self.logger.info('--> Not following')
                             sleep(1)
