@@ -2,6 +2,7 @@
 import csv
 import json
 import logging
+from contextlib import contextmanager
 import re
 from math import ceil
 import os
@@ -107,6 +108,7 @@ class InstaPy:
         self.username = username or os.environ.get('INSTA_USER')
         self.password = password or os.environ.get('INSTA_PW')
         self.nogui = nogui
+        self.internal_usage = {}
         self.logfolder = Settings.log_location + os.path.sep
         if self.multi_logs == True:
             self.logfolder = '{0}{1}{2}{1}'.format(
@@ -126,6 +128,7 @@ class InstaPy:
         self.video_comments = []
 
         self.followed = 0
+        self.already_followed = 0
         self.liked_img = 0
         self.already_liked = 0
         self.already_Visited = 0
@@ -135,6 +138,8 @@ class InstaPy:
         self.unfollowNumber = 0
         self.not_valid_users = 0
 
+        self.jumps = {"consequent": {"likes": 0, "comments": 0, "follows": 0, "unfollows": 0},
+                      "limit": {"likes": 7, "comments": 3, "follows": 5, "unfollows": 4}}
 
         self.follow_times = 1
         self.do_follow = False
@@ -184,11 +189,17 @@ class InstaPy:
         self.commenting_approved = True
         self.max_comments = 35
         self.min_comments = 0
-
-        self.delimit_commenting = False
-        self.commenting_approved = True
-        self.max_comments = 35
-        self.min_comments = 0
+        self.comments_mandatory_words = []
+        self.max_posts = None
+        self.min_posts = None
+        self.skip_business_categories = []
+        self.dont_skip_business_categories = []
+        self.skip_business = False
+        self.skip_no_profile_pic = False
+        self.skip_private = False
+        self.skip_business_percentage = 100
+        self.skip_no_profile_pic_percentage = 100
+        self.skip_private_percentage = 100
 
         self.relationship_data = {username:{"all_following":[], "all_followers":[]}}
 
@@ -702,78 +713,135 @@ class InstaPy:
         if not isinstance(followlist, list):
             followlist = [followlist]
 
-        self.follow_times = times or 0
         if self.aborting:
             self.logger.info(">>> self aborting prevented")
-            #return self
+            # return self
+
+        # standalone means this feature is started by the user
+        standalone = True if "follow_by_list" not in self.internal_usage.keys() else False
+        # skip validation in case of it is already accomplished
+        users_validated = True if not standalone and not self.internal_usage["follow_by_list"]["validate"] else False
+
+        self.follow_times = times or 0
 
         followed_all = 0
         followed_new = 0
+        already_followed = 0
         not_valid_users = 0
-        relax_point = random.randint(7, 14)   # you can use some plain value `10` instead of this quitely randomized score
+
+        # hold the current global values for differentiating at the end
+        liked_init = self.liked_img
+        already_liked_init = self.already_liked
+        commented_init = self.commented
+        inap_img_init = self.inap_img
+
+        relax_point = random.randint(7,
+                                     14)  # you can use some plain value `10` instead of this quitely randomized score
+        self.quotient_breach = False
 
         for acc_to_follow in followlist:
+            if self.jumps["consequent"]["follows"] >= self.jumps["limit"]["follows"]:
+                self.logger.warning("--> Follow quotient reached its peak!\t~leaving Follow-By-Tags activity\n")
+                # reset jump counter before breaking the loop
+                self.jumps["consequent"]["follows"] = 0
+                # turn on `quotient_breach` to break the internal iterators of the caller
+                self.quotient_breach = True if not standalone else False
+                break
+
             if follow_restriction("read", acc_to_follow, self.follow_times, self.logger):
+                print('')
                 continue
-            # Verify if the user should be followed
-            validation, details = validate_username(self.browser,
-                                           acc_to_follow,
-                                           self.username,
-                                           self.ignore_users,
-                                           self.blacklist,
-                                           self.potency_ratio,
-                                           self.delimit_by_numbers,
-                                           self.max_followers,
-                                           self.max_following,
-                                           self.min_followers,
-                                           self.min_following,
-                                           self.logger, type_of_account)
-            if validation != True or acc_to_follow==self.username:
-                self.logger.info("--> Not a valid user: {}".format(details))
-                not_valid_users += 1
-                continue
+
+            if not users_validated:
+                # Verify if the user should be followed
+                validation, details = self.validate_user_call(acc_to_follow)
+                if validation != True or acc_to_follow == self.username:
+                    self.logger.info("--> Not a valid user: {}".format(details))
+                    not_valid_users += 1
+                    continue
 
             # Take a break after a good following
             if followed_new >= relax_point:
-                delay_random = random.randint(ceil(sleep_delay*0.85), ceil(sleep_delay*1.14))
-                self.logger.info('Followed {} new users  ~sleeping about {}'.format(followed_new,
-                                                            '{} seconds'.format(delay_random) if delay_random < 60 else
-                                                            '{} minutes'.format(float("{0:.2f}".format(delay_random/60)))))
+                delay_random = random.randint(
+                    ceil(sleep_delay * 0.85),
+                    ceil(sleep_delay * 1.14))
+                sleep_time = ("{} seconds".format(delay_random) if
+                              delay_random < 60 else
+                              "{} minutes".format(truncate_float(
+                                  delay_random / 60, 2)))
+                self.logger.info("Followed {} new users  ~sleeping about {}\n"
+                                 .format(followed_new, sleep_time))
                 sleep(delay_random)
                 followed_new = 0
                 relax_point = random.randint(7, 14)
                 pass
 
             if not follow_restriction("read", acc_to_follow, self.follow_times, self.logger):
-                followed = follow_given_user(self.browser,
-                                              self.username,
-                                              acc_to_follow,
-                                              self.blacklist,
-                                              self.logger,
-                                              self.logfolder)
+                follow_state, msg = follow_user(self.browser,
+                                                "profile",
+                                                self.username,
+                                                acc_to_follow,
+                                                None,
+                                                self.blacklist,
+                                                self.logger,
+                                                self.logfolder)
                 sleep(random.randint(1, 3))
 
-                if followed:
-                    self.followed += 1
+                if follow_state == True:
                     followed_all += 1
                     followed_new += 1
-                    if len(followlist) > 1:   #print only for multiple follows, the others has own printers
-                        self.logger.info('Total Follow: {}'.format(str(followed_all)))
+                    # reset jump counter after a successful follow
+                    self.jumps["consequent"]["follows"] = 0
+
+                    if standalone:  # print only for external usage (internal callers have their printers)
+                        self.logger.info("Total Follow: {}\n".format(str(followed_all)))
 
                     # Check if interaction is expected
                     if interact and self.do_like:
                         do_interact = random.randint(0, 100) <= self.user_interact_percentage
                         # Do interactions if any
-                        if do_interact and self.user_interact_amount>0:
-                            original_do_follow = self.do_follow   # store the original value of `self.do_follow`
-                            self.do_follow = False   # disable following temporarily cos the user is already followed above
+                        if do_interact and self.user_interact_amount > 0:
+                            original_do_follow = self.do_follow  # store the original value of `self.do_follow`
+                            self.do_follow = False  # disable following temporarily cos the user is already followed above
                             self.interact_by_users(acc_to_follow,
-                                                    self.user_interact_amount,
-                                                     self.user_interact_random,
-                                                      self.user_interact_media)
-                            self.do_follow = original_do_follow   # revert back original `self.do_follow` value (either it was `False` or `True`)
+                                                   self.user_interact_amount,
+                                                   self.user_interact_random,
+                                                   self.user_interact_media)
+                            self.do_follow = original_do_follow  # revert back original `self.do_follow` value (either it was `False` or `True`)
+
+                elif msg == "already followed":
+                    already_followed += 1
+
+                elif msg == "jumped":
+                    # will break the loop after certain consecutive jumps
+                    self.jumps["consequent"]["follows"] += 1
+
                 sleep(1)
 
+        if standalone:  # print only for external usage (internal callers have their printers)
+            self.logger.info("Finished following by List!\n")
+            # print summary
+            self.logger.info("Followed: {}".format(followed_all))
+            self.logger.info("Already followed: {}".format(already_followed))
+            self.logger.info("Not valid users: {}".format(not_valid_users))
+
+            if interact == True:
+                print('')
+                # find the feature-wide action sizes by taking a difference
+                liked = (self.liked_img - liked_init)
+                already_liked = (self.already_liked - already_liked_init)
+                commented = (self.commented - commented_init)
+                inap_img = (self.inap_img - inap_img_init)
+
+                # print the summary out of interactions
+                self.logger.info("Liked: {}".format(liked))
+                self.logger.info("Already Liked: {}".format(already_liked))
+                self.logger.info("Commented: {}".format(commented))
+                self.logger.info("Inappropriate: {}".format(inap_img))
+
+        # always sum up general objects regardless of the request size
+        self.followed += followed_all
+        self.already_followed += already_followed
         self.not_valid_users += not_valid_users
 
         return followed_all
@@ -2197,6 +2265,31 @@ class InstaPy:
 
         return self
 
+    def validate_user_call(self, user_name, type_of_account):
+        """Call the validate_username() function"""
+        validation, details = validate_username(self.browser,
+                                                user_name,
+                                                self.username,
+                                                self.ignore_users,
+                                                self.blacklist,
+                                                self.potency_ratio,
+                                                self.delimit_by_numbers,
+                                                self.max_followers,
+                                                self.max_following,
+                                                self.min_followers,
+                                                self.min_following,
+                                                self.min_posts,
+                                                self.max_posts,
+                                                self.skip_private,
+                                                self.skip_private_percentage,
+                                                self.skip_no_profile_pic,
+                                                self.skip_no_profile_pic_percentage,
+                                                self.skip_business,
+                                                self.skip_business_percentage,
+                                                self.skip_business_categories,
+                                                self.dont_skip_business_categories,
+                                                self.logger, type_of_account)
+        return validation, details
 
     def follow_user_followers(self,
                               usernames,
@@ -2204,40 +2297,52 @@ class InstaPy:
                               randomize=False,
                               interact=False,
                               sleep_delay=600, type_of_account='all'):
+        """ Follow the `Followers` of given users """
+
+        message = "Starting to follow user `Followers`.."
+        highlight_print(self.username, message, "feature", "info", self.logger)
 
         if not isinstance(usernames, list):
             usernames = [usernames]
 
         followed_all = 0
         followed_new = 0
-        not_valid_users_initial = self.not_valid_users
         not_valid_users = 0
-        relax_point = random.randint(7, 14)   # you can use some plain value `10` instead of this quitely randomized score
-        liked_img = self.liked_img
-        already_liked = self.already_liked
-        commented = self.commented
-        followed = self.followed
-        inap_img = self.inap_img
+
+        # below, you can use some static value `10` instead of random ones..
+        relax_point = random.randint(7, 14)
+
+        # hold the current global values for differentiating at the end
+        already_followed_init = self.already_followed
+        liked_init = self.liked_img
+        already_liked_init = self.already_liked
+        commented_init = self.commented
+        inap_img_init = self.inap_img
+
+        self.quotient_breach = False
 
         for index, user in enumerate(usernames):
+            if self.quotient_breach:
+                break
 
-            self.logger.info("User '{}' [{}/{}]".format((user), index+1, len(usernames)))
+            self.logger.info("User '{}' [{}/{}]".format((user), index + 1, len(usernames)))
 
             try:
-                person_list, simulated_list = get_given_user_followers(self.browser,
-                                                                        self.username,
-                                                                        user,
-                                                                        amount,
-                                                                        self.dont_include,
-                                                                        randomize,
-                                                                        self.blacklist,
-                                                                        self.follow_times,
-                                                                        self.simulation,
-                                                                        self.logger,
-                                                                        self.logfolder)
+                person_list, simulated_list = get_given_user_followers(
+                    self.browser,
+                    self.username,
+                    user,
+                    amount,
+                    self.dont_include,
+                    randomize,
+                    self.blacklist,
+                    self.follow_times,
+                    self.simulation,
+                    self.jumps,
+                    self.logger,
+                    self.logfolder)
 
             except (TypeError, RuntimeWarning) as err:
-
                 if isinstance(err, RuntimeWarning):
                     self.logger.warning(
                         u'Warning: {} , skipping to next user'.format(err))
@@ -2245,78 +2350,113 @@ class InstaPy:
 
                 else:
                     self.logger.error(
-                        'Sorry, an error occured: {}'.format(err))
+                        'Sorry, an error occurred: {}'.format(err))
                     self.aborting = True
                     return self
 
             print('')
-            self.logger.info("Grabbed {} usernames from {}'s `Followers` to do following.".format(len(person_list), user))
+            self.logger.info(
+                "Grabbed {} usernames from '{}'s `Followers` to do following\n"
+                .format(len(person_list), user))
 
             followed_personal = 0
             simulated_unfollow = 0
 
             for index, person in enumerate(person_list):
-                self.logger.info("User '{}' [{}/{}]".format((person), index+1, len(person_list)))
+                if self.quotient_breach:
+                    self.logger.warning(
+                        "--> Follow quotient reached its peak!"
+                        "\t~leaving Follow-User-Followers activity\n")
+                    break
 
-                if person in simulated_list:
-                    validation, details = validate_username(self.browser,
-                               person,
-                               self.username,
-                               self.ignore_users,
-                               self.blacklist,
-                               self.potency_ratio,
-                               self.delimit_by_numbers,
-                               self.max_followers,
-                               self.max_following,
-                               self.min_followers,
-                               self.min_following,
-                               self.logger, type_of_account)
-                    if validation != True:
-                        self.logger.info(details)
-                        not_valid_users += 1
-                        simulated_unfollow += 1
-                        self.logger.info("Simulated unfollow: {}  ~not valid user".format(simulated_unfollow))
-                        unfollow_user(self.browser, self.username, person, self.relationship_data, self.logger, self.logfolder)
-                        continue
+                self.logger.info(
+                    "Ongoing Follow [{}/{}]: now following '{}'..."
+                    .format(index + 1,
+                            len(person_list),
+                            person))
 
-                followed = self.follow_by_list(person, self.follow_times, sleep_delay, interact)
+                validation, details = self.validate_user_call(person, type_of_account)
+                if validation != True:
+                    self.logger.info(details)
+                    not_valid_users += 1
+
+                    if person in simulated_list:
+                        self.logger.warning(
+                            "--> Simulated Unfollow {}: unfollowing"
+                            " '{}' due to mismatching validation...\n"
+                            .format(simulated_unfollow + 1, person))
+
+                        unfollow_state, msg = unfollow_user(
+                            self.browser,
+                            "profile",
+                            self.username,
+                            person,
+                            None,
+                            None,
+                            self.relationship_data,
+                            self.logger,
+                            self.logfolder)
+                        if unfollow_state == True:
+                            simulated_unfollow += 1
+                    # skip this [non-validated] user
+                    continue
+
+                # go ahead and follow, then interact (if any)
+                with self.feature_in_feature("follow_by_list", False):
+                    followed = self.follow_by_list(person,
+                                                   self.follow_times,
+                                                   sleep_delay,
+                                                   interact)
                 sleep(1)
 
                 if followed > 0:
                     followed_all += 1
                     followed_new += 1
                     followed_personal += 1
-                    self.logger.info('Follow [{}/{}]  |  Total Follow: {}'.format(followed_personal, len(person_list), followed_all))
-                    # Take a break after a good following
-                    if followed_new >= relax_point:
-                        delay_random = random.randint(ceil(sleep_delay*0.85), ceil(sleep_delay*1.14))
-                        self.logger.info('------=>  Followed {} new users ~sleeping about {}'.format(followed_new,
-                                                                    '{} seconds'.format(delay_random) if delay_random < 60 else
-                                                                    '{} minutes'.format(float("{0:.2f}".format(delay_random/60)))))
-                        sleep(delay_random)
-                        relax_point = random.randint(7, 14)
-                        followed_new=0
-                        pass
 
-        self.logger.info(
-            "--> Followed total of {} people\n".format(followed_all))
+                self.logger.info("Follow per user: {}  |  Total Follow: {}\n"
+                                 .format(followed_personal, followed_all))
+
+                # take a break after a good following
+                if followed_new >= relax_point:
+                    delay_random = random.randint(
+                        ceil(sleep_delay * 0.85),
+                        ceil(sleep_delay * 1.14))
+                    sleep_time = ("{} seconds".format(delay_random) if
+                                  delay_random < 60 else
+                                  "{} minutes".format(truncate_float(
+                                      delay_random / 60, 2)))
+                    self.logger.info(
+                        "------=>  Followed {} new users ~sleeping about {}\n"
+                        .format(followed_new, sleep_time))
+                    sleep(delay_random)
+                    relax_point = random.randint(7, 14)
+                    followed_new = 0
+
+        # final words
+        self.logger.info("Finished following {} users' `Followers`! xD\n"
+                         .format(len(usernames)))
+        # find the feature-wide action sizes by taking a difference
+        already_followed = (self.already_followed - already_followed_init)
+        inap_img = (self.inap_img - inap_img_init)
+        liked = (self.liked_img - liked_init)
+        already_liked = (self.already_liked - already_liked_init)
+        commented = (self.commented - commented_init)
+
+        # print results
+        self.logger.info("Followed: {}".format(followed_all))
+        self.logger.info("Already followed: {}".format(already_followed))
+        self.logger.info("Not valid users: {}".format(not_valid_users))
+
+        if interact == True:
+            print('')
+            # print results out of interactions
+            self.logger.info("Liked: {}".format(liked))
+            self.logger.info("Already Liked: {}".format(already_liked))
+            self.logger.info("Commented: {}".format(commented))
+            self.logger.info("Inappropriate: {}".format(inap_img))
 
         self.not_valid_users += not_valid_users
-
-        #add summary logging to the console
-        liked_img_sum = self.liked_img - liked_img
-        already_liked_sum = self.already_liked - already_liked
-        commented_sum = self.commented - commented
-        followed_sum = self.followed - followed
-        inap_img_sum = self.inap_img - inap_img
-        not_valid_users_sum = self.not_valid_users - not_valid_users_initial
-
-        self.logger.info('Liked: {}'.format(liked_img_sum))
-        self.logger.info('Already Liked: {}'.format(already_liked_sum))
-        self.logger.info('Commented: {}'.format(commented_sum))
-        self.logger.info('Followed: {}'.format(followed_sum))
-        self.logger.info('Inappropriate: {}'.format(inap_img_sum))
-        self.logger.info('Not valid users: {}\n'.format(not_valid_users_sum))
 
         return self
 
@@ -2328,39 +2468,55 @@ class InstaPy:
                               interact=False,
                               sleep_delay=600, type_of_account='all'):
 
+        """ Follow the `Following` of given users """
+        if self.aborting:
+            return self
+
+        message = "Starting to follow user `Following`.."
+        highlight_print(self.username, message, "feature", "info", self.logger)
+
         if not isinstance(usernames, list):
             usernames = [usernames]
 
         followed_all = 0
         followed_new = 0
-        not_valid_users_initial = self.not_valid_users
         not_valid_users = 0
-        relax_point = random.randint(7, 14)   # you can use some plain value `10` instead of this quitely randomized score
-        liked_img = self.liked_img
-        already_liked = self.already_liked
-        commented = self.commented
-        followed = self.followed
-        inap_img = self.inap_img
+
+        # hold the current global values for differentiating at the end
+        already_followed_init = self.already_followed
+        not_valid_users_init = self.not_valid_users
+        liked_init = self.liked_img
+        already_liked_init = self.already_liked
+        commented_init = self.commented
+        inap_img_init = self.inap_img
+
+        # below, can use a static value instead of from random range..
+        relax_point = random.randint(7, 14)
+        self.quotient_breach = False
 
         for index, user in enumerate(usernames):
+            if self.quotient_breach:
+                break
 
-            self.logger.info("User '{}' [{}/{}]".format((user), index+1, len(usernames)))
-
+            self.logger.info("User '{}' [{}/{}]".format((user),
+                                                        index + 1,
+                                                        len(usernames)))
             try:
-                person_list, simulated_list = get_given_user_followers(self.browser,
-                                                                        self.username,
-                                                                        user,
-                                                                        amount,
-                                                                        self.dont_include,
-                                                                        randomize,
-                                                                        self.blacklist,
-                                                                        self.follow_times,
-                                                                        self.simulation,
-                                                                        self.logger,
-                                                                        self.logfolder)
+                person_list, simulated_list = get_given_user_following(
+                    self.browser,
+                    self.username,
+                    user,
+                    amount,
+                    self.dont_include,
+                    randomize,
+                    self.blacklist,
+                    self.follow_times,
+                    self.simulation,
+                    self.jumps,
+                    self.logger,
+                    self.logfolder)
 
             except (TypeError, RuntimeWarning) as err:
-
                 if isinstance(err, RuntimeWarning):
                     self.logger.warning(
                         u'Warning: {} , skipping to next user'.format(err))
@@ -2368,78 +2524,114 @@ class InstaPy:
 
                 else:
                     self.logger.error(
-                        'Sorry, an error occured: {}'.format(err))
+                        'Sorry, an error occurred: {}'.format(err))
                     self.aborting = True
                     return self
 
             print('')
-            self.logger.info("Grabbed {} usernames from {}'s `Following` to do following.".format(len(person_list), user))
+            self.logger.info(
+                "Grabbed {} usernames from '{}'s `Following` to do following\n"
+                .format(len(person_list), user))
 
             followed_personal = 0
             simulated_unfollow = 0
 
             for index, person in enumerate(person_list):
-                self.logger.info("User '{}' [{}/{}]".format((person), index+1, len(person_list)))
+                if self.quotient_breach:
+                    self.logger.warning(
+                        "--> Follow quotient reached its peak!"
+                        "\t~leaving Follow-User-Following activity\n")
+                    break
 
-                if person in simulated_list:
-                    validation, details = validate_username(self.browser,
-                               person,
-                               self.username,
-                               self.ignore_users,
-                               self.blacklist,
-                               self.potency_ratio,
-                               self.delimit_by_numbers,
-                               self.max_followers,
-                               self.max_following,
-                               self.min_followers,
-                               self.min_following,
-                               self.logger, type_of_account)
-                    if validation != True:
-                        self.logger.info(details)
-                        not_valid_users += 1
-                        simulated_unfollow += 1
-                        self.logger.info("Simulated unfollow: {}  ~not valid user".format(simulated_unfollow))
-                        unfollow_user(self.browser, self.username, person, self.relationship_data, self.logger, self.logfolder)
-                        continue
+                self.logger.info(
+                    "Ongoing Follow [{}/{}]: now following '{}'..."
+                    .format(index + 1,
+                            len(person_list),
+                            person))
 
-                followed = self.follow_by_list(person, self.follow_times, sleep_delay, interact)
+                validation, details = self.validate_user_call(person, type_of_account=type_of_account)
+                if validation != True:
+                    self.logger.info(details)
+                    not_valid_users += 1
+
+                    if person in simulated_list:
+                        self.logger.warning(
+                            "--> Simulated Unfollow {}:"
+                            " unfollowing '{}' due to mismatching validation...\n"
+                            .format(simulated_unfollow + 1, person))
+
+                        unfollow_state, msg = unfollow_user(
+                            self.browser,
+                            "profile",
+                            self.username,
+                            person,
+                            None,
+                            None,
+                            self.relationship_data,
+                            self.logger,
+                            self.logfolder)
+                        if unfollow_state == True:
+                            simulated_unfollow += 1
+                    # skip the [non-validated] user
+                    continue
+
+                # go ahead and follow, then interact (if any)
+                with self.feature_in_feature("follow_by_list", False):
+                    followed = self.follow_by_list(person,
+                                                   self.follow_times,
+                                                   sleep_delay,
+                                                   interact)
                 sleep(1)
 
                 if followed > 0:
                     followed_all += 1
                     followed_new += 1
                     followed_personal += 1
-                    self.logger.info('Follow [{}/{}]  |  Total Follow: {}'.format(followed_personal, len(person_list), followed_all))
-                    # Take a break after a good following
-                    if followed_new >= relax_point:
-                        delay_random = random.randint(ceil(sleep_delay*0.85), ceil(sleep_delay*1.14))
-                        self.logger.info('------=>  Followed {} new users ~sleeping about {}'.format(followed_new,
-                                                                    '{} seconds'.format(delay_random) if delay_random < 60 else
-                                                                    '{} minutes'.format(float("{0:.2f}".format(delay_random/60)))))
-                        sleep(delay_random)
-                        relax_point = random.randint(7, 14)
-                        followed_new=0
-                        pass
 
-        self.logger.info(
-                "--> Followed total of {} people\n".format(followed_all))
+                self.logger.info("Follow per user: {}  |  Total Follow: {}\n"
+                                 .format(followed_personal, followed_all))
+
+                # take a break after a good following
+                if followed_new >= relax_point:
+                    delay_random = random.randint(
+                        ceil(sleep_delay * 0.85),
+                        ceil(sleep_delay * 1.14))
+                    sleep_time = ("{} seconds".format(delay_random) if
+                                  delay_random < 60 else
+                                  "{} minutes".format(truncate_float(
+                                      delay_random / 60, 2)))
+                    self.logger.info(
+                        "------=>  Followed {} new users ~sleeping about {}\n"
+                        .format(followed_new, sleep_time))
+                    sleep(delay_random)
+                    relax_point = random.randint(7, 14)
+                    followed_new = 0
+
+        # final words
+        self.logger.info("Finished following {} users' `Following`! xD\n"
+                         .format(len(usernames)))
+
+        # find the feature-wide action sizes by taking a difference
+        already_followed = (self.already_followed - already_followed_init)
+        inap_img = (self.inap_img - inap_img_init)
+        liked = (self.liked_img - liked_init)
+        already_liked = (self.already_liked - already_liked_init)
+        commented = (self.commented - commented_init)
+
+        # print results
+        self.logger.info("Followed: {}".format(followed_all))
+        self.logger.info("Already followed: {}".format(already_followed))
+        self.logger.info("Not valid users: {}".format(not_valid_users))
+
+        if interact == True:
+            print('')
+            # print results out of interactions
+            self.logger.info("Liked: {}".format(liked))
+            self.logger.info("Already Liked: {}".format(already_liked))
+            self.logger.info("Commented: {}".format(commented))
+            self.logger.info("Inappropriate: {}".format(inap_img))
 
         self.not_valid_users += not_valid_users
-
-        #add summary logging to the console
-        liked_img_sum = self.liked_img - liked_img
-        already_liked_sum = self.already_liked - already_liked
-        commented_sum = self.commented - commented
-        followed_sum = self.followed - followed
-        inap_img_sum = self.inap_img - inap_img
-        not_valid_users_sum = self.not_valid_users - not_valid_users_initial
-
-        self.logger.info('Liked: {}'.format(liked_img_sum))
-        self.logger.info('Already Liked: {}'.format(already_liked_sum))
-        self.logger.info('Commented: {}'.format(commented_sum))
-        self.logger.info('Followed: {}'.format(followed_sum))
-        self.logger.info('Inappropriate: {}'.format(inap_img_sum))
-        self.logger.info('Not valid users: {}\n'.format(not_valid_users_sum))
 
         return self
 
@@ -2466,10 +2658,11 @@ class InstaPy:
                 self.logger.warning("`unfollow_after` argument is not available for Python versions below 2.7")
                 unfollow_after = None
 
-        self.automatedFollowedPool = set_automated_followed_pool(self.username,
-                                                                 unfollow_after,
-                                                                 self.logger,
-                                                                 self.logfolder)
+        self.automatedFollowedPool = set_automated_followed_pool(
+            self.username,
+            unfollow_after,
+            self.logger,
+            self.logfolder)
 
         try:
             unfollowNumber = unfollow(self.browser,
@@ -2486,6 +2679,7 @@ class InstaPy:
                                       self.dont_include,
                                       self.white_list,
                                       sleep_delay,
+                                      self.jumps,
                                       self.logger,
                                       self.logfolder)
             self.logger.info(
@@ -2840,6 +3034,21 @@ class InstaPy:
                                           self.logfolder)
         return grabbed_following
 
+    @contextmanager
+    def feature_in_feature(self, feature, validate_users):
+        """
+         Use once a host feature calls a guest
+        feature WHERE guest needs special behaviour(s)
+        """
+
+        try:
+            # add the guest which is gonna be used by the host :)
+            self.internal_usage[feature] = {"validate": validate_users}
+            yield
+
+        finally:
+            # remove the guest just after using it
+            self.internal_usage.pop(feature)
 
     def pick_unfollowers(self, username=None, compare_by="latest", compare_track="first", live_match=False, store_locally=True, print_out=True):
         """ Compares the `followers` stored in a latest local copy against

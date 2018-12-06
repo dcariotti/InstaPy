@@ -18,6 +18,9 @@ from selenium.webdriver.support.ui import WebDriverWait
 from .time_util import sleep
 from .time_util import sleep_actual
 from .database_engine import get_database
+from .quota_supervisor import quota_supervisor
+from .settings import Settings
+import random
 
 import urllib.request
 from bs4 import BeautifulSoup as bs4
@@ -71,47 +74,70 @@ def validate_username(browser,
                       max_following,
                       min_followers,
                       min_following,
+                      min_posts,
+                      max_posts,
+                      skip_private,
+                      skip_private_percentage,
+                      skip_no_profile_pic,
+                      skip_no_profile_pic_percentage,
+                      skip_business,
+                      skip_business_percentage,
+                      skip_business_categories,
+                      dont_skip_business_categories,
                       logger, type_of_account='all'):
     """Check if we can interact with the user"""
 
-    # Some features may not povide `username` and in those cases we will get it from post's page.
+    skip_business = type_of_account in ['all', 'business']
+    # some features may not provide `username` and in those cases we will get it from post's page.
     if '/' in username_or_link:
-        link = username_or_link   # if there is a `/` in `username_or_link`, then it is a `link`
+        link = username_or_link  # if there is a `/` in `username_or_link`, then it is a `link`
 
-        #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
+        # check URL of the webpage, if it already is user's profile page, then do not navigate to it again
         web_address_navigator(browser, link)
 
         try:
             username = browser.execute_script(
-                    "return window._sharedData.entry_data."
-                    "PostPage[0].graphql.shortcode_media.owner.username")
+                "return window._sharedData.entry_data."
+                "PostPage[0].graphql.shortcode_media.owner.username")
+
         except WebDriverException:
             try:
-                browser.execute_script("location.relaod()")
+                browser.execute_script("location.reload()")
+                update_activity()
+
                 username = browser.execute_script(
-                        "return window._sharedData.entry_data."
-                        "PostPage[0].graphql.shortcode_media.owner.username")
+                    "return window._sharedData.entry_data."
+                    "PostPage[0].graphql.shortcode_media.owner.username")
+
             except WebDriverException:
-                logger.error("Username validation failed! ~cannot get the post owner's username")
-                return False, \
-                        "---> Sorry, this page isn't available! ~link is broken, or page is removed\n"
+                logger.error("Username validation failed!\t~cannot get the post owner's username")
+                inap_msg = "---> Sorry, this page isn't available!\t~either link is broken or page is removed\n"
+                return False, inap_msg
+
     else:
-        username = username_or_link   # if there is no `/` in `username_or_link`, then it is a `username`
+        username = username_or_link  # if there is no `/` in `username_or_link`, then it is a `username`
 
     if username == own_username:
-        return False, \
-                "---> Username '{}' is yours!  ~skipping user\n".format(own_username)
+        inap_msg = "---> Username '{}' is yours!\t~skipping user\n".format(own_username)
+        return False, inap_msg
 
     if username in ignore_users:
-        return False, \
-                "---> {} is in ignore_users list  ~skipping user\n".format(username)
+        inap_msg = "---> '{}' is in the `ignore_users` list\t~skipping user\n".format(username)
+        return False, inap_msg
 
-    if username in blacklist:
-        return False, \
-                "---> {} is in blacklist  ~skipping user\n".format(username)
+    logfolder = logfolder = '{0}{1}{2}{1}'.format(
+            Settings.log_location, os.path.sep, own_username)
 
-    if not validate_type_of_account(username, type_of_account):
-        return False, "--> {} is not the request type of account\n".format(username)
+    blacklist_file = "{}blacklist.csv".format(logfolder)
+    blacklist_file_exists = os.path.isfile(blacklist_file)
+    if blacklist_file_exists:
+        with open("{}blacklist.csv".format(logfolder), 'rt') as f:
+            reader = csv.reader(f, delimiter=',')
+            for row in reader:
+                for field in row:
+                    if field == username:
+                        logger.info('Username in BlackList: {} '.format(username))
+                        return False, "---> {} is in blacklist  ~skipping user\n".format(username)
 
     """Checks the potential of target user by relationship status in order to delimit actions within the desired boundary"""
     if potency_ratio or delimit_by_numbers and (max_followers or max_following or min_followers or min_following):
@@ -119,7 +145,7 @@ def validate_username(browser,
         relationship_ratio = None
         reverse_relationship = False
 
-        # Get followers & following counts
+        # get followers & following counts
         followers_count, following_count = get_relationship_counts(browser, username, logger)
 
         if potency_ratio and potency_ratio < 0:
@@ -127,54 +153,151 @@ def validate_username(browser,
             reverse_relationship = True
 
         if followers_count and following_count:
-            relationship_ratio = (float(followers_count)/float(following_count)
-                       if not reverse_relationship
-                        else float(following_count)/float(followers_count))
+            relationship_ratio = (float(followers_count) / float(following_count)
+                                  if not reverse_relationship
+                                  else float(following_count) / float(followers_count))
 
-        logger.info('User: {} >> followers: {}  |  following: {}  |  relationship ratio: {}'.format(username,
-        followers_count if followers_count else 'unknown',
-        following_count if following_count else 'unknown',
-        float("{0:.2f}".format(relationship_ratio)) if relationship_ratio else 'unknown'))
-        if followers_count  or following_count:
-            #if potency_ratio and not delimit_by_numbers:
-            #    if relationship_ratio and relationship_ratio < potency_ratio:
-            #            return False, \
-            #                "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
-            #                username, "potential user" if not reverse_relationship else "massive follower",
-            #                float("{0:.2f}".format(relationship_ratio)))
+        logger.info("User: '{}'  |> followers: {}  |> following: {}  |> relationship ratio: {}"
+                    .format(username,
+                            followers_count if followers_count else 'unknown',
+                            following_count if following_count else 'unknown',
+                            truncate_float(relationship_ratio, 2) if relationship_ratio else 'unknown'))
 
-            #elif delimit_by_numbers:
-            if delimit_by_numbers:
+        if followers_count or following_count:
+            if potency_ratio and not delimit_by_numbers:
+                if relationship_ratio and relationship_ratio < potency_ratio:
+                    inap_msg = ("'{}' is not a {} with the relationship ratio of {}  ~skipping user\n"
+                                .format(username,
+                                        "potential user" if not reverse_relationship else "massive follower",
+                                        truncate_float(relationship_ratio, 2)))
+                    return False, inap_msg
+
+            elif delimit_by_numbers:
                 if followers_count:
                     if max_followers:
                         if followers_count > max_followers:
-                            return False, \
-                                "User {}'s followers count exceeds maximum limit  ~skipping user\n".format(username)
+                            inap_msg = ("User '{}'s followers count exceeds maximum limit  ~skipping user\n"
+                                        .format(username))
+                            return False, inap_msg
+
                     if min_followers:
                         if followers_count < min_followers:
-                            return False, \
-                                "User {}'s followers count is less than minimum limit  ~skipping user\n".format(username)
+                            inap_msg = ("User '{}'s followers count is less than minimum limit  ~skipping user\n"
+                                        .format(username))
+                            return False, inap_msg
+
                 if following_count:
                     if max_following:
                         if following_count > max_following:
-                            return False, \
-                                "User {}'s following count exceeds maximum limit  ~skipping user\n".format(username)
+                            inap_msg = ("User '{}'s following count exceeds maximum limit  ~skipping user\n"
+                                        .format(username))
+                            return False, inap_msg
+
                     if min_following:
                         if following_count < min_following:
-                            return False, \
-                                "User {}'s following count is less than minimum limit  ~skipping user\n".format(username)
-                #if potency_ratio:
-                #    if relationship_ratio and relationship_ratio < potency_ratio:
-                #        return False, \
-                #            "{} is not a {} with the relationship ratio of {}  ~skipping user\n".format(
-                #            username, "potential user" if not reverse_relationship else "massive follower",
-                #            float("{0:.2f}".format(relationship_ratio)))
+                            inap_msg = ("User '{}'s following count is less than minimum limit  ~skipping user\n"
+                                        .format(username))
+                            return False, inap_msg
 
+                if potency_ratio:
+                    if relationship_ratio and relationship_ratio < potency_ratio:
+                        inap_msg = ("'{}' is not a {} with the relationship ratio of {}  ~skipping user\n"
+                                    .format(username,
+                                            "potential user" if not reverse_relationship else "massive follower",
+                                            truncate_float(relationship_ratio, 2)))
+                        return False, inap_msg
 
-    # if everything ok
+    if min_posts or max_posts or skip_private or skip_no_profile_pic or skip_business:
+        user_link = "https://www.instagram.com/{}/".format(username)
+        web_address_navigator(browser, user_link)
+
+    if min_posts or max_posts:
+        # if you are interested in relationship number of posts boundaries
+        try:
+            number_of_posts = getUserData("graphql.user.edge_owner_to_timeline_media.count", browser)
+        except WebDriverException:
+            logger.error("~cannot get number of posts for username")
+            inap_msg = "---> Sorry, couldn't check for number of posts of username\n"
+            return False, inap_msg
+        if max_posts:
+            if number_of_posts > max_posts:
+                inap_msg = ("Number of posts ({}) of '{}' exceeds the maximum limit given {}\n"
+                            .format(number_of_posts, username, max_posts))
+                return False, inap_msg
+        if min_posts:
+            if number_of_posts < min_posts:
+                inap_msg = ("Number of posts ({}) of '{}' is less than the minimum limit given {}\n"
+                            .format(number_of_posts, username, min_posts))
+                return False, inap_msg
+
+    """Skip users"""
+
+    # skip private
+    if skip_private:
+        try:
+            is_private = getUserData("graphql.user.is_private", browser)
+        except WebDriverException:
+            logger.error("~cannot get if user is private")
+            return False, "---> Sorry, couldn't get if user is private\n"
+        if is_private and (random.randint(0, 100) <= skip_private_percentage):
+            return False, "{} is private account, by default skip\n".format(username)
+
+    # skip no profile pic
+    if skip_no_profile_pic:
+        try:
+            profile_pic = getUserData("graphql.user.profile_pic_url", browser)
+        except WebDriverException:
+            logger.error("~cannot get the post profile pic url")
+            return False, "---> Sorry, couldn't get if user profile pic url\n"
+        if (profile_pic in default_profile_pic_instagram or str(profile_pic).find("11906329_960233084022564_1448528159_a.jpg") > 0) and (random.randint(0, 100) <= skip_no_profile_pic_percentage):
+            return False, "{} has default instagram profile picture\n".format(username)
+
+    # skip business
+    if skip_business:
+        # if is business account skip under conditions
+        try:
+            is_business_account = getUserData("graphql.user.is_business_account", browser)
+        except WebDriverException:
+            logger.error("~cannot get if user has business account active")
+            return False, "---> Sorry, couldn't get if user has business account active\n"
+
+        if is_business_account:
+            try:
+                category = getUserData("graphql.user.business_category_name", browser)
+            except WebDriverException:
+                logger.error("~cannot get category name for user")
+                return False, "---> Sorry, couldn't get category name for user\n"
+
+            if len(skip_business_categories) == 0:
+                # skip if not in dont_include
+                if category not in dont_skip_business_categories:
+                    if len(dont_skip_business_categories) == 0 and (random.randint(0, 100) <= skip_business_percentage):
+                        return False, "'{}' has a business account\n".format(username)
+                    else:
+                        return False, "'{}' has a business account in the undesired category of '{}'\n".format(
+                            username, category)
+            else:
+                if category in skip_business_categories:
+                    return False, "'{}' has a business account in the undesired category of '{}'\n".format(
+                        username, category)
+
+    # if everything is ok
     return True, "Valid user"
 
+def getUserData(query,
+                browser,
+                basequery="return window._sharedData.entry_data.ProfilePage[0]."):
+    try:
+        data = browser.execute_script(
+            basequery + query)
+        return data
+    except WebDriverException:
+        browser.execute_script("location.reload()")
+        update_activity()
 
+        data = browser.execute_script(
+            basequery + query)
+        return data
 
 def update_activity(action=None):
     """ Record every Instagram server call (page load, content load, likes,
@@ -247,6 +370,247 @@ def add_user_to_blacklist(username, campaign, action, logger, logfolder):
                 .format(username, campaign, action))
 
 
+def is_page_available(browser, logger):
+    """ Check if the page is available and valid """
+    expected_keywords = ["Page Not Found", "Content Unavailable"]
+    page_title = get_page_title(browser, logger)
+
+    if any(keyword in page_title for keyword in expected_keywords):
+        reload_webpage(browser)
+        page_title = get_page_title(browser, logger)
+
+        if any(keyword in page_title for keyword in expected_keywords):
+            if "Page Not Found" in page_title:
+                logger.warning("The page isn't available!\t~the link may be broken, or the page may have been removed...")
+
+            elif "Content Unavailable" in page_title:
+                logger.warning("The page isn't available!\t~the user may have blocked you...")
+
+            return False
+
+    return True
+
+def reload_webpage(browser):
+    """ Reload the current webpage """
+    browser.execute_script("location.reload()")
+    update_activity()
+    sleep(2)
+
+    return True
+
+
+
+def get_page_title(browser, logger):
+    """ Get the title of the webpage """
+    # wait for the current page fully load to get the correct page's title
+    explicit_wait(browser, "PFL", [], logger, 10)
+
+    try:
+        page_title = browser.title
+
+    except WebDriverException:
+        try:
+            page_title = browser.execute_script("return document.title")
+
+        except WebDriverException:
+            try:
+                page_title = browser.execute_script(
+                    "return document.getElementsByTagName('title')[0].text")
+
+            except WebDriverException:
+                logger.info("Unable to find the title of the page :(")
+                return None
+
+    return page_title
+
+
+
+
+def click_visibly(browser, element):
+    """ Click as the element become visible """
+    if element.is_displayed():
+        click_element(browser, element)
+
+    else:
+        browser.execute_script("arguments[0].style.visibility = 'visible'; "
+                               "arguments[0].style.height = '10px'; "
+                               "arguments[0].style.width = '10px'; "
+                               "arguments[0].style.opacity = 1",
+                               element)
+        # update server calls
+        update_activity()
+
+        click_element(browser, element)
+
+    return True
+
+
+
+def get_action_delay(action):
+    """ Get the delay time to sleep after doing actions """
+    defaults = {"like": 2,
+                "comment": 2,
+                "follow": 3,
+                "unfollow": 10}
+    config = Settings.action_delays
+
+    if (not config or
+        config["enabled"] != True or
+        config[action] is None or
+            type(config[action]) not in [int, float]):
+        return defaults[action]
+
+    else:
+        custom_delay = config[action]
+
+    # randomize the custom delay in user-defined range
+    if (config["randomize"] == True and
+        type(config["random_range"]) == tuple and
+        len(config["random_range"]) == 2 and
+        all((type(i) in [type(None), int, float] for i in config["random_range"])) and
+            any(type(i) is not None for i in config["random_range"])):
+        min_range = config["random_range"][0]
+        max_range = config["random_range"][1]
+
+        if not min_range or min_range < 0:
+            min_range = 100
+
+        if not max_range or max_range < 0:
+            max_range = 100
+
+        if min_range > max_range:
+            a = min_range
+            min_range = max_range
+            max_range = a
+
+        custom_delay = random.uniform(custom_delay*min_range/100,
+                                      custom_delay*max_range/100)
+
+    if (custom_delay < defaults[action] and
+            config["safety_match"] != False):
+        return defaults[action]
+
+    return custom_delay
+
+
+
+def deform_emojis(text):
+    """ Convert unicode emojis into their text form """
+    new_text = ''
+    emojiless_text = ''
+    data = regex.findall(r'\X', text)
+    emojis_in_text = []
+
+    for word in data:
+        if any(char in UNICODE_EMOJI for char in word):
+            word_emoji = (emoji.demojize(word)
+                          .replace(':', '')
+                          .replace('_', ' '))
+            if word_emoji not in emojis_in_text:   # do not add an emoji if already exists in text
+                emojiless_text += ' '
+                new_text += " ({}) ".format(word_emoji)
+                emojis_in_text.append(word_emoji)
+            else:
+                emojiless_text += ' '
+                new_text += ' '   # add a space [instead of an emoji to be duplicated]
+
+        else:
+            new_text += word
+            emojiless_text += word
+
+    emojiless_text = remove_extra_spaces(emojiless_text)
+    new_text = remove_extra_spaces(new_text)
+
+    return new_text, emojiless_text
+
+
+
+def extract_text_from_element(elem):
+    """ As an element is valid and contains text, extract it and return """
+    if elem and hasattr(elem, 'text') and elem.text:
+        text = elem.text
+    else:
+        text = None
+
+    return text
+
+
+
+def truncate_float(number, precision, round=False):
+    """ Truncate (shorten) a floating point value at given precision """
+
+    # don't allow a negative precision [by mistake?]
+    precision = abs(precision)
+
+    if round:
+        # python 2.7+ supported method [recommended]
+        short_float = round(number, precision)
+
+        # python 2.6+ supported method
+        """short_float = float("{0:.{1}f}".format(number, precision))
+        """
+
+    else:
+        operate_on = 1   # returns the absolute number (e.g. 11.0 from 11.456)
+
+        for i in range(precision):
+            operate_on *= 10
+
+        short_float = float(int(number*operate_on)) / operate_on
+
+
+    return short_float
+
+
+
+def get_time_until_next_month():
+    """ Get total seconds remaining until the next month """
+    now = datetime.datetime.now()
+    next_month = now.month + 1 if now.month < 12 else 1
+    year = now.year if now.month < 12 else now.year+1
+    date_of_next_month = datetime.datetime(year, next_month, 1)
+
+    remaining_seconds = (date_of_next_month - now).total_seconds()
+
+
+    return remaining_seconds
+
+def emergency_exit(browser, username, logger):
+    """ Raise emergency if the is no connection to server OR if user is not logged in """
+    using_proxy = True if Settings.connection_type == "proxy" else False
+    # ping the server only if connected directly rather than through a proxy
+    if not using_proxy:
+        server_address = "instagram.com"
+        connection_state = ping_server(server_address, logger)
+        if connection_state == False:
+            return True, "not connected"
+
+    # check if the user is logged in
+    auth_method = "activity counts"
+    login_state = check_authorization(browser, username, auth_method, logger)
+    if login_state == False:
+        return True, "not logged in"
+
+    return False, "no emergency"
+
+
+
+def remove_extra_spaces(text):
+    """ Find and remove redundant spaces more than 1 in text """
+    new_text = re.sub(
+                        r" {2,}", ' ', text
+                     )
+
+    return new_text
+
+
+
+def has_any_letters(text):
+    """ Check if the text has any letters in it """
+    # result = re.search("[A-Za-z]", text)   # works only with english letters
+    result = any(c.isalpha() for c in text)   # works with any letters - english or non-english
+
+    return result
 
 def get_active_users(browser, username, posts, boundary, logger):
     """Returns a list with usernames who liked the latest n posts"""
@@ -559,61 +923,76 @@ def get_relationship_counts(browser, username, logger):
 
     user_link = "https://www.instagram.com/{}/".format(username)
 
-    #Check URL of the webpage, if it already is user's profile page, then do not navigate to it again
+    # check URL of the webpage, if it already is user's profile page, then do not navigate to it again
     web_address_navigator(browser, user_link)
 
     try:
-        followers_count = format_number(browser.find_element_by_xpath("//a[contains"
-                                "(@href,'followers')]/span").text)
-    except NoSuchElementException:
+        followers_count = browser.execute_script(
+            "return window._sharedData.entry_data."
+            "ProfilePage[0].graphql.user.edge_followed_by.count")
+
+    except WebDriverException:
         try:
-            followers_count = browser.execute_script(
-                "return window._sharedData.entry_data."
-                "ProfilePage[0].graphql.user.edge_followed_by.count")
-        except WebDriverException:
+            followers_count = format_number(browser.find_element_by_xpath("//a[contains"
+                                                                          "(@href,'followers')]/span").text)
+        except NoSuchElementException:
             try:
                 browser.execute_script("location.reload()")
+                update_activity()
+
                 followers_count = browser.execute_script(
                     "return window._sharedData.entry_data."
                     "ProfilePage[0].graphql.user.edge_followed_by.count")
+
             except WebDriverException:
                 try:
                     topCount_elements = browser.find_elements_by_xpath(
                         "//span[contains(@class,'g47SY')]")
+
                     if topCount_elements:
                         followers_count = format_number(topCount_elements[1].text)
+
                     else:
-                        logger.info("Failed to get followers count of '{}'  ~empty list".format(username))
+                        logger.info("Failed to get followers count of '{}'  ~empty list".format(username.encode("utf-8")))
                         followers_count = None
+
                 except NoSuchElementException:
-                    logger.error("Error occured during getting the followers count of '{}'\n".format(username))
+                    logger.error("Error occurred during getting the followers count of '{}'\n".format(username.encode("utf-8")))
                     followers_count = None
 
     try:
-        following_count = format_number(browser.find_element_by_xpath("//a[contains"
-                                "(@href,'following')]/span").text)
-    except NoSuchElementException:
+        following_count = browser.execute_script(
+            "return window._sharedData.entry_data."
+            "ProfilePage[0].graphql.user.edge_follow.count")
+
+    except WebDriverException:
         try:
-            following_count = browser.execute_script(
-                "return window._sharedData.entry_data."
-                "ProfilePage[0].graphql.user.edge_follow.count")
-        except WebDriverException:
+            following_count = format_number(browser.find_element_by_xpath("//a[contains"
+                                                                          "(@href,'following')]/span").text)
+
+        except NoSuchElementException:
             try:
                 browser.execute_script("location.reload()")
+                update_activity()
+
                 following_count = browser.execute_script(
                     "return window._sharedData.entry_data."
                     "ProfilePage[0].graphql.user.edge_follow.count")
+
             except WebDriverException:
                 try:
                     topCount_elements = browser.find_elements_by_xpath(
                         "//span[contains(@class,'g47SY')]")
+
                     if topCount_elements:
                         following_count = format_number(topCount_elements[2].text)
+
                     else:
-                        logger.info("Failed to get following count of '{}'  ~empty list".format(username))
+                        logger.info("Failed to get following count of '{}'  ~empty list".format(username.encode("utf-8")))
                         following_count = None
+
                 except NoSuchElementException:
-                    logger.error("\nError occured during getting the following count of '{}'\n".format(username))
+                    logger.error("\nError occurred during getting the following count of '{}'\n".format(username.encode("utf-8")))
                     following_count = None
 
     return followers_count, following_count
@@ -637,7 +1016,51 @@ def web_address_navigator(browser, link):
         update_activity()
         sleep(2)
 
+def get_action_delay(action):
+    """ Get the delay time to sleep after doing actions """
+    defaults = {"like": 2,
+                "comment": 2,
+                "follow": 3,
+                "unfollow": 10}
+    config = Settings.action_delays
 
+    if (not config or
+        config["enabled"] != True or
+        config[action] is None or
+            type(config[action]) not in [int, float]):
+        return defaults[action]
+
+    else:
+        custom_delay = config[action]
+
+    # randomize the custom delay in user-defined range
+    if (config["randomize"] == True and
+        type(config["random_range"]) == tuple and
+        len(config["random_range"]) == 2 and
+        all((type(i) in [type(None), int, float] for i in config["random_range"])) and
+            any(type(i) is not None for i in config["random_range"])):
+        min_range = config["random_range"][0]
+        max_range = config["random_range"][1]
+
+        if not min_range or min_range < 0:
+            min_range = 100
+
+        if not max_range or max_range < 0:
+            max_range = 100
+
+        if min_range > max_range:
+            a = min_range
+            min_range = max_range
+            max_range = a
+
+        custom_delay = random.uniform(custom_delay*min_range/100,
+                                      custom_delay*max_range/100)
+
+    if (custom_delay < defaults[action] and
+            config["safety_match"] != False):
+        return defaults[action]
+
+    return custom_delay
 
 @contextmanager
 def interruption_handler(SIG_type=signal.SIGINT, handler=signal.SIG_IGN, notify=None, logger=None):
@@ -1021,3 +1444,70 @@ def get_current_url(browser):
             current_url = None
 
     return current_url
+
+def find_user_id(browser, track, username, logger):
+    """  Find the user ID from the loaded page """
+    if track in ["dialog", "profile"]:
+        query = "return window._sharedData.entry_data.ProfilePage[0].graphql.user.id"
+
+    elif track == "post":
+        query = "return window._sharedData.entry_data.PostPage[0].graphql.shortcode_media.owner.id"
+        meta_XP = "//meta[@property='instapp:owner_user_id']"
+
+    failure_message = "Failed to get the user ID of '{}' from {} page!".format(username, track)
+
+    try:
+        user_id = browser.execute_script(query)
+
+    except WebDriverException:
+        try:
+            browser.execute_script("location.reload()")
+            update_activity()
+
+            user_id = browser.execute_script(query)
+
+        except WebDriverException:
+            if track == "post":
+                try:
+                    user_id = browser.find_element_by_xpath(meta_XP).get_attribute("content")
+                    if user_id:
+                        user_id = format_number(user_id)
+
+                    else:
+                        logger.error("{}\t~empty string".format(failure_message))
+                        user_id = None
+
+                except NoSuchElementException:
+                    logger.error(failure_message)
+                    user_id = None
+
+            else:
+                logger.error(failure_message)
+                user_id = None
+
+    return user_id
+
+def truncate_float(number, precision, round=False):
+    """ Truncate (shorten) a floating point value at given precision """
+
+    # don't allow a negative precision [by mistake?]
+    precision = abs(precision)
+
+    if round:
+        # python 2.7+ supported method [recommended]
+        short_float = round(number, precision)
+
+        # python 2.6+ supported method
+        """short_float = float("{0:.{1}f}".format(number, precision))
+        """
+
+    else:
+        operate_on = 1   # returns the absolute number (e.g. 11.0 from 11.456)
+
+        for i in range(precision):
+            operate_on *= 10
+
+        short_float = float(int(number*operate_on)) / operate_on
+
+
+    return short_float
