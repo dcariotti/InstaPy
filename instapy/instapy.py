@@ -43,7 +43,6 @@ from .util import interruption_handler
 from .util import highlight_print
 from .util import dump_record_activity
 from .util import truncate_float
-
 from .unfollow_util import get_given_user_followers
 from .unfollow_util import get_given_user_following
 from .unfollow_util import unfollow
