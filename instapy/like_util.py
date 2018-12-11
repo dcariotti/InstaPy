@@ -596,8 +596,8 @@ def check_link(browser, post_link, dont_like, mandatory_words, ignore_if_contain
 
 def like_image(igbooster, path_for_igbooster, link, browser, username, blacklist, logger, logfolder):
     """Likes the browser opened image"""
-    like_xpath = "//button/span[@aria-label='Like']"
-    unlike_xpath = "//button/span[@aria-label='Unlike']"
+    like_xpath = "//button/span[@class='glyphsSpriteHeart__outline__24__grey_9 u-__7' and @aria-label='Like']"
+    unlike_xpath = "//button/span[@class='glyphsSpriteHeart__filled__24__red_5 u-__7' and @aria-label='Unlike']"
 
     # find first for like element
     like_elem = browser.find_elements_by_xpath(like_xpath)

@@ -593,7 +593,7 @@ class InstaPy:
         return self
 
 
-    def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=600, interact=False, type_of_account='all'):
+    def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=300, interact=False, type_of_account='all'):
         """ Follows users' commenters """
 
         if self.aborting:
@@ -698,7 +698,7 @@ class InstaPy:
         return self
 
 
-    def follow_likers (self, usernames, urls=None, type_of_account='all', amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=600, interact=False):
+    def follow_likers (self, usernames, urls=None, type_of_account='all', amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=300, interact=False):
         """ Follows users from urls """
         if urls:
             if not isinstance(urls, list):
@@ -817,7 +817,7 @@ class InstaPy:
 
         return self
 
-    def follow_by_list(self, followlist, times=1, sleep_delay=600, interact=False, type_of_account='all'):
+    def follow_by_list(self, followlist, times=1, sleep_delay=300, interact=False, type_of_account='all'):
         """Allows to follow by any scrapped list"""
         if not isinstance(followlist, list):
             followlist = [followlist]
@@ -2347,7 +2347,7 @@ class InstaPy:
                               amount=10,
                               randomize=False,
                               interact=False,
-                              sleep_delay=600, type_of_account='all'):
+                              sleep_delay=300, type_of_account='all'):
         """ Follow the `Followers` of given users """
 
         message = "Starting to follow user `Followers`.."
@@ -2517,7 +2517,7 @@ class InstaPy:
                               amount=10,
                               randomize=False,
                               interact=False,
-                              sleep_delay=600, type_of_account='all'):
+                              sleep_delay=300, type_of_account='all'):
 
         """ Follow the `Following` of given users """
         if self.aborting:
@@ -2695,7 +2695,7 @@ class InstaPy:
                        allFollowing=False,
                        style="FIFO",
                        unfollow_after=None,
-                       sleep_delay=600):
+                       sleep_delay=300):
         """Unfollows (default) 10 users from your following list"""
 
         if self.aborting:
@@ -2846,12 +2846,12 @@ class InstaPy:
                                     web_address_navigator(self.browser, link)
 
                                 #try to like
-                                liked = like_image(self.igbooster, self.path_for_igbooster,
-                                            self.browser,
-                                                   user_name,
-                                                   self.blacklist,
-                                                   self.logger,
-                                                   self.logfolder)
+                                liked = like_image(self.igbooster, self.path_for_igbooster,link,
+                                                            self.browser,
+                                                               user_name,
+                                                               self.blacklist,
+                                                               self.logger,
+                                                               self.logfolder)
 
                                 if liked:
                                     username = (self.browser.
@@ -2919,13 +2919,12 @@ class InstaPy:
                                                 comments = (
                                                     self.comments +
                                                     self.photo_comments)
-                                            commented += like_image(self.igbooster, self.path_for_igbooster, link,
+                                            commented += like_image(self.igbooster, self.path_for_igbooster,link,
                                                             self.browser,
-                                                            user_name,
-                                                            comments,
-                                                            self.blacklist,
-                                                            self.logger,
-                                                            self.logfolder)
+                                                               user_name,
+                                                               self.blacklist,
+                                                               self.logger,
+                                                               self.logfolder)
                                         else:
                                             self.logger.info(disapproval_reason)
                                     else:
