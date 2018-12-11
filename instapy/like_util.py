@@ -436,7 +436,7 @@ def get_links_for_username(browser,
 
     return links[:amount]
 
-def check_link(browser, post_link, dont_like, mandatory_words, ignore_if_contains, logger, tags2=False, locations=False):
+def check_link(browser, post_link, dont_like, mandatory_words, mandatory_language, mandatory_character, is_mandatory_character, check_character_set, ignore_if_contains, logger, tags2=False, locations=False):
     """
     Check the given link if it is appropriate
 

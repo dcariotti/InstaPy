@@ -139,6 +139,10 @@ class InstaPy:
         self.unfollowNumber = 0
         self.not_valid_users = 0
 
+        self.mandatory_language = False
+        self.mandatory_character = []
+        self.check_letters = {}
+
         self.jumps = {"consequent": {"likes": 0, "comments": 0, "follows": 0, "unfollows": 0},
                       "limit": {"likes": 7, "comments": 3, "follows": 5, "unfollows": 4}}
 
@@ -1072,11 +1076,15 @@ class InstaPy:
                         try:
                             inappropriate, user_name, is_video, reason, scope, contains_tag2 = (
                                 check_link(self.browser,
-                                       link,
-                                       self.dont_like,
-                                       self.mandatory_words,
-                                       self.ignore_if_contains,
-                                       self.logger, tags2=tags2)
+                                   link,
+                                   self.dont_like,
+                                   self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
+                                   self.ignore_if_contains,
+                                   self.logger, tags2=tags2)
                             )
                             if not contains_tag2:
                                 self.logger.info('Element from list 2 not found {}'.format(tags2))
@@ -1096,13 +1104,16 @@ class InstaPy:
                             continue
                     else:
                         inappropriate, user_name, is_video, reason, scope = (
-                            check_link(self.browser,
+                        check_link(self.browser,
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
                                    self.ignore_if_contains,
-                                   self.logger)
-                        )
+                                   self.logger))
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -1274,9 +1285,12 @@ class InstaPy:
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
                                    self.ignore_if_contains,
-                                   self.logger)
-                    )
+                                   self.logger))
 
                     if not inappropriate:
                         #validate user
@@ -1477,11 +1491,15 @@ class InstaPy:
                             if locations:
                                 inappropriate, user_name, is_video, reason, scope, contains_tag2, contains_locations = (
                                     check_link(self.browser,
-                                       link,
-                                       self.dont_like,
-                                       self.mandatory_words,
-                                       self.ignore_if_contains,
-                                       self.logger, tags2=tags2, locations=locations)
+                                   link,
+                                   self.dont_like,
+                                   self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
+                                   self.ignore_if_contains,
+                                   self.logger, tags2=tags2, locations=locations)
                                 )
                                 if not contains_tag2 and not contains_locations:
                                     self.logger.info('Element from list 2 not found {}'.format(tags2))
@@ -1501,9 +1519,13 @@ class InstaPy:
                                     check_link(self.browser,
                                        link,
                                        self.dont_like,
-                                       self.mandatory_words,
-                                       self.ignore_if_contains,
-                                       self.logger, tags2=tags2)
+                                   self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
+                                   self.ignore_if_contains,
+                                   self.logger, tags2=tags2)
                                 )
                                 if not contains_tag2:
                                     self.logger.info('Element from list 2 not found {}'.format(tags2))
@@ -1527,8 +1549,12 @@ class InstaPy:
                                 check_link(self.browser,
                                        link,
                                        self.dont_like,
-                                       self.mandatory_words,
-                                       self.ignore_if_contains,
+                                   self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
+                                   self.ignore_if_contains,
                                        self.logger, locations=locations)
                             )
                             if not contains_locations:
@@ -1549,13 +1575,16 @@ class InstaPy:
                             continue
                     else:
                         inappropriate, user_name, is_video, reason, scope = (
-                            check_link(self.browser,
+                        check_link(self.browser,
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
                                    self.ignore_if_contains,
-                                   self.logger)
-                        )                            
+                                   self.logger))                            
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -1783,9 +1812,12 @@ class InstaPy:
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
                                    self.ignore_if_contains,
-                                   self.logger)
-                    )
+                                   self.logger))
 
                     if not inappropriate and self.delimit_liking:
                         self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -1952,9 +1984,12 @@ class InstaPy:
                                    link,
                                    self.dont_like,
                                    self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
                                    self.ignore_if_contains,
-                                   self.logger)
-                    )
+                                   self.logger))
 
                     if not inappropriate:
 
@@ -2825,12 +2860,15 @@ class InstaPy:
                         try:
                             inappropriate, user_name, is_video, reason, scope = (
                                 check_link(self.browser,
-                                           link,
-                                           self.dont_like,
-                                           self.mandatory_words,
-                                           self.ignore_if_contains,
-                                           self.logger)
-                            )
+                                   link,
+                                   self.dont_like,
+                                   self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
+                                   self.ignore_if_contains,
+                                   self.logger))
 
                             if not inappropriate and self.delimit_liking:
                                 self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -3263,8 +3301,7 @@ class InstaPy:
                                    self.mandatory_character,
                                    self.check_character_set,
                                    self.ignore_if_contains,
-                                   self.logger)
-                    )
+                                   self.logger))
 
                     if not inappropriate:
                         # validate user
@@ -3349,13 +3386,16 @@ class InstaPy:
 
             try:
                 inappropriate, user_name, is_video, reason, scope = (
-                    check_link(self.browser,
-                               url,
-                               self.dont_like,
-                               self.mandatory_words,
-                               self.ignore_if_contains,
-                               self.logger)
-                )
+                        check_link(self.browser,
+                                   link,
+                                   self.dont_like,
+                                   self.mandatory_words,
+                                   self.mandatory_language,
+                                   self.is_mandatory_character,
+                                   self.mandatory_character,
+                                   self.check_character_set,
+                                   self.ignore_if_contains,
+                                   self.logger))
 
                 if not inappropriate and self.delimit_liking:
                     self.liking_approved = verify_liking(self.browser, self.max_likes, self.min_likes, self.logger)
@@ -3491,3 +3531,19 @@ class InstaPy:
         self.not_valid_users += not_valid_users
 
         return self
+
+    def is_mandatory_character(self, uchr):
+        if self.aborting:
+            return self
+        try:
+            return self.check_letters[uchr]
+        except KeyError:
+             return self.check_letters.setdefault(uchr, self.mandatory_character in unicodedata.name(uchr))
+
+    def check_character_set(self, unistr):
+        self.check_letters = {}
+        if self.aborting:
+            return self
+        return all(self.is_mandatory_character(uchr)
+               for uchr in unistr
+               if uchr.isalpha())
