@@ -24,6 +24,7 @@ from .util import interruption_handler
 from .util import get_relationship_counts
 from .util import get_action_delay
 from .util import emergency_exit
+from .util import load_user_id
 from .util import is_page_available
 from .util import reload_webpage
 from .util import get_page_title
