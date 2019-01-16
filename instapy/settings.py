@@ -5,6 +5,12 @@ from sys import platform as p_os
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OS_ENV = "windows" if p_os == "win32" else "osx" if p_os == "darwin" else "linux"
 
+from pymongo import MongoClient
+
+# MongoDB
+client = MongoClient('mongodb://{}:{}@localhost:27017/igbooster'.format('igb_admin', 'password'))
+mongo = client.igbooster
+
 class Settings:
     """ Globally accessible settings throughout whole project """
     log_location = os.path.join(BASE_DIR, 'logs')

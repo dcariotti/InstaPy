@@ -31,6 +31,7 @@ from .util import get_page_title
 from .util import click_visibly
 from .util import truncate_float
 from .util import explicit_wait
+from .util import get_username_from_id
 from .util import find_user_id
 from .print_log_writer import log_followed_pool
 from .print_log_writer import log_uncertain_unfollowed_pool
@@ -40,6 +41,10 @@ from .relationship_tools import get_following
 from .relationship_tools import get_nonfollowers
 from .database_engine import get_database
 from .quota_supervisor import quota_supervisor
+
+from .util import get_avatar
+from datetime import datetime
+from .settings import mongo
 
 def set_automated_followed_pool(username, unfollow_after, logger, logfolder):
     """ Generare a user list based on the InstaPy followed usernames """
@@ -786,7 +791,7 @@ def verify_action(browser, action, track, username, person, person_id, logger, l
     return True, "success"
 
 # def follow_user(browser, login, user_name, blacklist, logger, logfolder):
-def follow_user(browser, track, login, user_name, button, blacklist, logger, logfolder):
+def follow_user(browser, track, login, user_name, button, blacklist, logger, logfolder, action=[]):
     """ Follow a user either from the profile page or post page or dialog box """
     # list of available tracks to follow in: ["profile", "post" "dialog"]
 
@@ -851,6 +856,26 @@ def follow_user(browser, track, login, user_name, button, blacklist, logger, log
 
 
     ## general tasks after a successful follow
+    if len(action) > 0:
+        data = {
+            'author': login,
+            'user': {
+                'username': user_name,
+                'avatar': get_avatar(user_name),
+            },
+            'date': datetime.now().strftime("%d/%m/%Y %H:%M")
+        }
+
+        if action[0] == 'tag':
+            data['tag'] = action[1]
+        elif action[0] == 'location':
+            data['location'] = action[1]
+        elif action[0] == 'user':
+            data['u'] = action[1]
+        elif action[0] == 'link':
+            data['link'] = action[1]
+
+        mongo.followed.insert_one(data)
 
     logger.info("--> Followed '{}'!".format(user_name.encode("utf-8")))
     update_activity('follows')

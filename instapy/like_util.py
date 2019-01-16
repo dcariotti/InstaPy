@@ -20,6 +20,9 @@ import re
 from bs4 import BeautifulSoup as bs4
 import urllib.request
 
+from .util import scrape_mp4_from_shortcode, scrape_avatar_from_shortcode, info_from_img
+from datetime import datetime
+from .settings import mongo
 
 def get_links_from_feed(browser, amount, num_of_search, logger):
     """Fetches random number of links from feed and returns a list of links"""
@@ -436,6 +439,16 @@ def get_links_for_username(browser,
 
     return links[:amount]
 
+def get_media_edge_comment_string(media):
+    """AB test (Issue 3712) alters the string for media edge, this resoves it"""
+    options = ['edge_media_to_comment', 'edge_media_preview_comment']
+    for option in options:
+        try:
+            media[option]
+        except KeyError:
+            continue
+        return option
+
 def check_link(browser, post_link, dont_like, mandatory_words, mandatory_language, mandatory_character, is_mandatory_character, check_character_set, ignore_if_contains, logger, tags2=False, locations=False):
     """
     Check the given link if it is appropriate
@@ -481,29 +494,42 @@ def check_link(browser, post_link, dont_like, mandatory_words, mandatory_languag
         user_name = media['owner']['username']
         image_text = media['edge_media_to_caption']['edges']
         image_text = image_text[0]['node']['text'] if image_text else None
+        location = media['location']
+        location_name = location['name'] if location else None
+        media_edge_string = get_media_edge_comment_string(media)
+        # double {{ allows us to call .format here:
         owner_comments = browser.execute_script('''
-      latest_comments = window._sharedData.entry_data.PostPage[0].graphql.shortcode_media.edge_media_to_comment.edges;
-      if (latest_comments === undefined) latest_comments = Array();
-      owner_comments = latest_comments
-        .filter(item => item.node.owner.username == '{}')
-        .map(item => item.node.text)
-        .reduce((item, total) => item + '\\n' + total, '');
-      return owner_comments;
-    '''.format(user_name))
+            latest_comments = window._sharedData.entry_data.PostPage[
+            0].graphql.shortcode_media.{}.edges;
+            if (latest_comments === undefined) {{
+                latest_comments = Array();
+                owner_comments = latest_comments
+                    .filter(item => item.node.owner.username == arguments[0])
+                    .map(item => item.node.text)
+                    .reduce((item, total) => item + '\\n' + total, '');
+                return owner_comments;}}
+            else {{
+                return null;}}
+        '''.format(media_edge_string), user_name)
+
     else:
         media = post_page[0]['media']
         is_video = media['is_video']
         user_name = media['owner']['username']
         image_text = media['caption']
         owner_comments = browser.execute_script('''
-      latest_comments = window._sharedData.entry_data.PostPage[0].media.comments.nodes;
-      if (latest_comments === undefined) latest_comments = Array();
-      owner_comments = latest_comments
-        .filter(item => item.user.username == '{}')
-        .map(item => item.text)
-        .reduce((item, total) => item + '\\n' + total, '');
-      return owner_comments;
-    '''.format(user_name))
+            latest_comments = window._sharedData.entry_data.PostPage[
+            0].media.comments.nodes;
+            if (latest_comments === undefined) {
+                latest_comments = Array();
+                owner_comments = latest_comments
+                    .filter(item => item.user.username == arguments[0])
+                    .map(item => item.text)
+                    .reduce((item, total) => item + '\\n' + total, '');
+                return owner_comments;}
+            else {
+                return null;}
+        ''', user_name)
 
     if owner_comments == '':
         owner_comments = None
@@ -517,11 +543,14 @@ def check_link(browser, post_link, dont_like, mandatory_words, mandatory_languag
     """If the image still has no description gets the first comment"""
     if image_text is None:
         if graphql:
-            image_text = media['edge_media_to_comment']['edges']
+            media_edge_string = get_media_edge_comment_string(media)
+            image_text = media[media_edge_string]['edges']
             image_text = image_text[0]['node']['text'] if image_text else None
+
         else:
             image_text = media['comments']['nodes']
             image_text = image_text[0]['text'] if image_text else None
+            
     if image_text is None:
         image_text = "No description"
 
@@ -594,7 +623,7 @@ def check_link(browser, post_link, dont_like, mandatory_words, mandatory_languag
     return False, user_name, is_video, 'None', "Success"
 
 
-def like_image(igbooster, path_for_igbooster, link, browser, username, blacklist, logger, logfolder):
+def like_image(igbooster, path_for_igbooster, link, browser, username, blacklist, logger, logfolder, tag=None):
     """Likes the browser opened image"""
     like_xpath = "//button/span[@class='glyphsSpriteHeart__outline__24__grey_9 u-__7' and @aria-label='Like']"
     unlike_xpath = "//button/span[@class='glyphsSpriteHeart__filled__24__red_5 u-__7' and @aria-label='Unlike']"
@@ -610,13 +639,26 @@ def like_image(igbooster, path_for_igbooster, link, browser, username, blacklist
         liked_elem = browser.find_elements_by_xpath(unlike_xpath)
         if len(liked_elem) == 1:
             if igbooster:
-                with open(path_for_igbooster, 'r') as f:
-                    data = json.load(f)
+                if not link:
+                    return False
 
-                data['likes'].append(link)
+                shortcode = re.search('/p/(.*)/', link).group(1)
 
-                with open(path_for_igbooster, 'w') as f:
-                    json.dump(data, f)
+                d_info = info_from_img(shortcode)
+                data = {
+                    'author': path_for_igbooster,
+                    'link': link,
+                    'tag': tag,
+                    'user': scrape_avatar_from_shortcode(shortcode),
+                    'url': d_info['url'],
+                    'is_video': d_info['is_video'],
+                    'date': datetime.now().strftime("%d/%m/%Y %H:%M")
+                }
+
+                if d_info['is_video']:
+                    data['url'] = scrape_mp4_from_shortcode(shortcode)
+
+                mongo.likes.insert_one(data)
 
             logger.info('--> Image Liked!')
             update_activity('likes')

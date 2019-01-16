@@ -1512,3 +1512,156 @@ def truncate_float(number, precision, round=False):
 
 
     return short_float
+
+def get_username_from_id(browser, user_id, logger):
+    """ Convert user ID to username """
+    # method using graphql 'Account media' endpoint
+    logger.info(
+        "Trying to find the username from the given user ID by loading a post")
+
+    query_hash = "42323d64886122307be10013ad2dcc44"  # earlier-
+    # "472f257a40c653c64c666ce877d59d2b"
+    graphql_query_URL = "https://www.instagram.com/graphql/query/?query_hash" \
+                        "={}".format(query_hash)
+    variables = {"id": str(user_id), "first": 1}
+    post_url = u"{}&variables={}".format(graphql_query_URL,
+                                         str(json.dumps(variables)))
+
+    web_address_navigator(browser, post_url)
+    try:
+        pre = browser.find_element_by_tag_name("pre").text
+    except NoSuchElementException:
+        logger.info(
+            "Encountered an error to find `pre` in page, skipping username.")
+        return None
+    user_data = json.loads(pre)["data"]["user"]
+
+    if user_data:
+        user_data = user_data["edge_owner_to_timeline_media"]
+
+        if user_data["edges"]:
+            post_code = user_data["edges"][0]["node"]["shortcode"]
+            post_page = "https://www.instagram.com/p/{}".format(post_code)
+
+            web_address_navigator(browser, post_page)
+            username = get_username(browser, "post", logger)
+            if username:
+                return username
+
+        else:
+            if user_data["count"] == 0:
+                logger.info(
+                    "Profile with ID {}: no pics found".format(user_id))
+
+            else:
+                logger.info(
+                    "Can't load pics of a private profile to find username ("
+                    "ID: {})".format(
+                        user_id))
+
+    else:
+        logger.info(
+            "No profile found, the user may have blocked you (ID: {})".format(
+                user_id))
+        return None
+
+    """  method using private API
+    #logger.info("Trying to find the username from the given user ID by a
+    quick API call")
+    #req = requests.get(u"https://i.instagram.com/api/v1/users/{}/info/"
+    #                   .format(user_id))
+    #if req:
+    #    data = json.loads(req.text)
+    #    if data["user"]:
+    #        username = data["user"]["username"]
+    #        return username
+    """
+
+    """ Having a BUG (random log-outs) with the method below, use it only in
+    the external sessions
+    # method using graphql 'Follow' endpoint
+    logger.info("Trying to find the username from the given user ID "
+                "by using the GraphQL Follow endpoint")
+    user_link_by_id = ("https://www.instagram.com/web/friendships/{}/follow/"
+                       .format(user_id))
+    web_address_navigator(browser, user_link_by_id)
+    username = get_username(browser, "profile", logger)
+    """
+
+    return None
+
+def scrape_mp4_from_shortcode(shortcode):
+    """
+    Dallo shortcode, cerca la pagina https://instagram.com/p/{{ shortcode }}
+    e ritorna il valore del campo video_url
+    """
+    p = urllib.request.urlopen(urllib.request.Request('https://www.instagram.com/p/{}/?__a=1'.format(shortcode),headers={
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/35.0.1916.47 Safari/537.36'
+    }))
+    
+    return json.loads(p.read().decode('utf-8'))['graphql']['shortcode_media']['video_url']
+
+def scrape_avatar_from_shortcode(shortcode):
+    """
+    Dallo shortcode, cerca la pagina https://instagram.com/p/{{ shortcode }}
+    e ritorna un dizionario contentente l'username e l'avatar del creatore
+    """
+    p = urllib.request.urlopen(urllib.request.Request('https://www.instagram.com/p/{}/?__a=1'.format(shortcode)))
+    data = json.loads(p.read().decode('utf-8'))['graphql']['shortcode_media']['owner']
+
+    return { 'username' : data['username'], 'avatar' : data['profile_pic_url'] }
+
+def info_from_img(shortcode, is_collection=False):
+    """
+    Da uno shortcode, scopre l'immagine da quel post Instagram
+    """
+    try:
+        p = urllib.request.urlopen(urllib.request.Request('https://www.instagram.com/p/{}/?__a=1'.format(shortcode)))
+        data = json.loads(p.read().decode('utf-8'))['graphql']['shortcode_media']
+    except:
+        return None
+
+    try:
+        caption = data['edge_media_to_caption']['edges'][0]['node']['text']
+    except:
+        caption = ''
+
+    if is_collection:
+        return { 
+            'username' : data['owner']['username'], 
+            'avatar' : data['owner']['profile_pic_url'], 
+            'data': [
+                {
+                    'id': shortcode,
+                    'url': data['display_url'],
+                    'caption': '',
+                    'is_video' : str(data['is_video']),
+                    'checked': 'False',
+                    'saved': 'False'
+                }
+            ]
+        }
+
+    return { 'url' : data['display_url'], 'caption' : caption, 'is_video': data['is_video'] }
+
+def get_avatar(username):
+    """
+    Da un username ritorna il suo avatar su Instagram
+    """
+    try:
+        p = urllib.request.urlopen(urllib.request.Request('https://www.instagram.com/{}'.format(username)))
+        lines = ''
+        for i in range(165):
+            lines += p.readline().decode('utf-8')
+        
+        bs = bs4(lines, 'html.parser')
+        return str(bs.head.find('meta', {'property' : 'og:image'})).split(' ')[1][9:-1]
+    except:
+        pass
+
+    return ''
+
+def get_proxy():
+    string = open('proxy.txt').readline()[:-1]
+
+    return string

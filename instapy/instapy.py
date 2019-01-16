@@ -43,6 +43,7 @@ from .util import interruption_handler
 from .util import highlight_print
 from .util import dump_record_activity
 from .util import truncate_float
+from .util import get_proxy
 from .unfollow_util import get_given_user_followers
 from .unfollow_util import get_given_user_following
 from .unfollow_util import unfollow
@@ -220,8 +221,9 @@ class InstaPy:
         self.log_user = ('instapy_user_%s' % self.username)
         self.logger = self.get_instapy_logger(show_logs)
         self.ig_api = InstagramAPI(self.username, self.password)
+        self.ig_api.setProxy(get_proxy())
         self.ig_api.login()
-        self.path_for_igbooster = 'logs/%s/info_for_igbooster.json' % self.username
+        self.path_for_igbooster = self.username
 
         if self.selenium_local_session == True:
             self.set_selenium_local_session()
@@ -310,7 +312,7 @@ class InstaPy:
             # Proxy for chrome
             if self.proxy_address and self.proxy_port > 0:
                 prox = Proxy()
-                proxy = ":".join([self.proxy_address, self.proxy_port])
+                proxy = ":".join([self.proxy_address, str(self.proxy_port)])
                 prox.proxy_type = ProxyType.MANUAL
                 prox.http_proxy = proxy
                 prox.socks_proxy = proxy
@@ -821,7 +823,7 @@ class InstaPy:
 
         return self
 
-    def follow_by_list(self, followlist, times=1, sleep_delay=300, interact=False, type_of_account='all'):
+    def follow_by_list(self, followlist, times=1, sleep_delay=300, interact=False, type_of_account='all', from_u=''):
         """Allows to follow by any scrapped list"""
         if not isinstance(followlist, list):
             followlist = [followlist]
@@ -897,7 +899,7 @@ class InstaPy:
                                                 None,
                                                 self.blacklist,
                                                 self.logger,
-                                                self.logfolder)
+                                                self.logfolder, action=['user', from_u])
                 sleep(random.randint(1, 3))
 
                 if follow_state == True:
@@ -1208,7 +1210,7 @@ class InstaPy:
                                                                 None,
                                                                 self.blacklist,
                                                                 self.logger,
-                                                                self.logfolder)
+                                                                self.logfolder, action=['location', location])
                                 if follow_state == True:
                                     followed += 1
 
@@ -1356,7 +1358,7 @@ class InstaPy:
                                                                comments,
                                                                self.blacklist,
                                                                self.logger,
-                                                               self.logfolder)
+                                                               self.logfolder, action=['location', location])
                                 else:
                                     self.logger.info(disapproval_reason)
                             else:
@@ -1377,7 +1379,7 @@ class InstaPy:
                                                                 None,
                                                                 self.blacklist,
                                                                 self.logger,
-                                                                self.logfolder)
+                                                                self.logfolder, action=['location', location])
                                 if follow_state == True:
                                     followed += 1
 
@@ -1606,7 +1608,7 @@ class InstaPy:
                                            user_name,
                                            self.blacklist,
                                            self.logger,
-                                           self.logfolder)
+                                           self.logfolder, tag=tag)
 
                         if liked:
 
@@ -1677,7 +1679,7 @@ class InstaPy:
                                                                comments,
                                                                self.blacklist,
                                                                self.logger,
-                                                               self.logfolder)
+                                                               self.logfolder, action=['tag', tag])
                                 else:
                                     self.logger.info(disapproval_reason)
                             else:
@@ -1699,7 +1701,7 @@ class InstaPy:
                                                                 None,
                                                                 self.blacklist,
                                                                 self.logger,
-                                                                self.logfolder)
+                                                                self.logfolder, action=['tag', tag])
                                 if follow_state == True:
                                     followed += 1
                             else:
@@ -2492,7 +2494,7 @@ class InstaPy:
                     followed = self.follow_by_list(person,
                                                    self.follow_times,
                                                    sleep_delay,
-                                                   interact)
+                                                   interact, from_u=user)
                 sleep(1)
 
                 if followed > 0:
@@ -2553,6 +2555,13 @@ class InstaPy:
                               randomize=False,
                               interact=False,
                               sleep_delay=300, type_of_account='all'):
+
+        """ Follow the `Following` of given users """
+        if self.aborting:
+            return self
+
+        message = "Starting to follow user `Following`.."
+        highlight_print(self.username, message, "feature", "info", self.logger)
 
         """ Follow the `Following` of given users """
         if self.aborting:
@@ -2666,7 +2675,7 @@ class InstaPy:
                     followed = self.follow_by_list(person,
                                                    self.follow_times,
                                                    sleep_delay,
-                                                   interact)
+                                                   interact, from_u=user)
                 sleep(1)
 
                 if followed > 0:
@@ -3322,7 +3331,7 @@ class InstaPy:
                                                         None,
                                                         self.blacklist,
                                                         self.logger,
-                                                        self.logfolder)
+                                                        self.logfolder, action=['tag', tag])
                         if follow_state == True:
                             followed += 1
                             # reset jump counter after a successful follow
@@ -3484,7 +3493,7 @@ class InstaPy:
                                                                 None,
                                                                 self.blacklist,
                                                                 self.logger,
-                                                                self.logfolder)
+                                                                self.logfolder, action=['link', url])
                             if follow_state == True:
                                 followed += 1
                         else:

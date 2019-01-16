@@ -11,6 +11,9 @@ from selenium.common.exceptions import NoSuchElementException
 import emoji
 
 import json
+from .util import get_avatar
+from datetime import datetime
+from .settings import mongo
 
 def get_comment_input(browser):
     comment_input = browser.find_elements_by_xpath(
@@ -37,7 +40,7 @@ def open_comment_section(browser):
         print(missing_comment_elem_warning)
 
 
-def comment_image(igbooster, path_for_igbooster, link, browser, username, comments, blacklist, logger, logfolder):
+def comment_image(igbooster, path_for_igbooster, link, browser, username, comments, blacklist, logger, logfolder, action=[]):
     """Checks if it should comment on the image"""
     rand_comment = (choice(comments).format(username))
     rand_comment = emoji.demojize(rand_comment)
@@ -72,13 +75,23 @@ def comment_image(igbooster, path_for_igbooster, link, browser, username, commen
 
 
     if igbooster:
-        with open(path_for_igbooster, 'r') as f:
-            data = json.load(f)
+        data = {
+            'author': path_for_igbooster,
+            'user': {
+                'username': username,
+                'avatar': get_avatar(username),
+            },
+            'comment': rand_comment,
+            'link': link,
+            'date': datetime.now().strftime("%d/%m/%Y %H:%M")
+        }
 
-        data['comments'].append(link)
+        if action[0] == 'location':
+            data['location'] = action[1]
+        else:
+            data['tag'] = action[1]
 
-        with open(path_for_igbooster, 'w') as f:
-            json.dump(data, f)
+        mongo.comments.insert_one(data)
 
     logger.info("--> Commented: {}".format(rand_comment.encode('utf-8')))
     sleep(2)
