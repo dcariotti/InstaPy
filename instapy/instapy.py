@@ -87,7 +87,7 @@ class InstaPy:
                  proxy_address=None,
                  proxy_chrome_extension=None,
                  proxy_port=0,
-                 bypass_suspicious_attempt=False,
+                 bypass_suspicious_attempt=True,
                  multi_logs=False,
                  settings=None,
                  igbooster=True):
@@ -394,6 +394,19 @@ class InstaPy:
 
         self.followed_by = log_follower_num(self.browser, self.username, self.logfolder)
         self.following_num = log_following_num(self.browser, self.username, self.logfolder)
+
+        
+        ii = 0
+        while ii < 3 and not self.ig_api.isLoggedIn:
+            sleep(1)
+            self.ig_api.login()
+
+        if not self.ig_api.isLoggedIn:
+            self.logger.error('NO Login')            
+            self.aborting = True
+
+        if self.aborting:
+            self.end()
 
         return self
 
