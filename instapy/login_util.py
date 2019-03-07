@@ -235,8 +235,13 @@ def login_user(browser,
     for i in range(2):
         update_activity()
 
-    login_button = browser.find_element_by_xpath(
-        "//button[text()='Log in']")
+    try:
+        login_button = browser.find_element_by_xpath(
+            "//div[text()='Log in']")
+    except NoSuchElementException:
+        print("Login A/B test detected! Trying another string...")
+        login_button = browser.find_element_by_xpath(
+            "//div[text()='Log In']")
 
     (ActionChains(browser)
         .move_to_element(login_button)

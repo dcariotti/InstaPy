@@ -26,6 +26,53 @@ import urllib.request
 from bs4 import BeautifulSoup as bs4
 import re
 
+def watch_the_story(browser, logger):
+    # xpaths
+    prev_xpath = "//button/div[@class='coreSpriteRightChevron']"
+    next_xpath = "//button/div[@class='coreSpriteRightChevron']"
+    close_xpath = "//button/div[@class='coreSpriteCloseLight']"
+    prev_elem = None
+    next_elem = None
+    try:
+        # check if there is a story for this user according to IG user data
+        is_story = browser.execute_script(
+            "return window._sharedData.entry_data."
+            "ProfilePage[0].graphql.user.has_highlight_reel")
+        if is_story:
+            # first img is a story
+            first_imag = browser.find_element_by_tag_name("img")
+            click_element(browser, first_imag)
+            sleep(2)
+            # find the buttons before story ends to save time on xpath fail
+            close_elem = browser.find_element_by_xpath(close_xpath)
+            while random.randint(1,5) != 1:
+                # find the element
+                if next_elem is None:
+                    next_elem = browser.find_element_by_xpath(next_xpath)
+                sleep(random.randint(2,6))
+                # move to the right (next)
+                click_element(browser, next_elem)
+                sleep(2) # let the prev button load
+                if random.randint(1, 10) == 1:
+                    if prev_elem is None:
+                        prev_elem = browser.find_element_by_xpath(prev_xpath)
+                    sleep(random.randint(2, 4))
+                    # play with it, we can go back
+                    click_element(browser, prev_elem)
+            sleep(5)
+            # close button since this is a long story..
+            click_element(browser, close_elem)
+    except NoSuchElementException:
+        # story is finished
+        pass
+    except StaleElementReferenceException:
+        # story is finished
+        pass
+    except WebDriverException:
+        logger.error('has_highlight_reel not exist')
+    except:
+        logger.error('Story: something went wrong')
+
 def is_private_profile(browser, logger, following=True):
     is_private = None
     is_private = browser.execute_script(
