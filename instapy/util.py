@@ -25,53 +25,7 @@ import random
 import urllib.request
 from bs4 import BeautifulSoup as bs4
 import re
-
-def watch_the_story(browser, logger):
-    # xpaths
-    prev_xpath = "//button/div[@class='coreSpriteRightChevron']"
-    next_xpath = "//button/div[@class='coreSpriteRightChevron']"
-    close_xpath = "//button/div[@class='coreSpriteCloseLight']"
-    prev_elem = None
-    next_elem = None
-    try:
-        # check if there is a story for this user according to IG user data
-        is_story = browser.execute_script(
-            "return window._sharedData.entry_data."
-            "ProfilePage[0].graphql.user.has_highlight_reel")
-        if is_story:
-            # first img is a story
-            first_imag = browser.find_element_by_tag_name("img")
-            click_element(browser, first_imag)
-            sleep(2)
-            # find the buttons before story ends to save time on xpath fail
-            close_elem = browser.find_element_by_xpath(close_xpath)
-            while random.randint(1,5) != 1:
-                # find the element
-                if next_elem is None:
-                    next_elem = browser.find_element_by_xpath(next_xpath)
-                sleep(random.randint(2,6))
-                # move to the right (next)
-                click_element(browser, next_elem)
-                sleep(2) # let the prev button load
-                if random.randint(1, 10) == 1:
-                    if prev_elem is None:
-                        prev_elem = browser.find_element_by_xpath(prev_xpath)
-                    sleep(random.randint(2, 4))
-                    # play with it, we can go back
-                    click_element(browser, prev_elem)
-            sleep(5)
-            # close button since this is a long story..
-            click_element(browser, close_elem)
-    except NoSuchElementException:
-        # story is finished
-        pass
-    except StaleElementReferenceException:
-        # story is finished
-        pass
-    except WebDriverException:
-        logger.error('has_highlight_reel not exist')
-    except:
-        logger.error('Story: something went wrong')
+import requests
 
 def is_private_profile(browser, logger, following=True):
     is_private = None
@@ -131,7 +85,7 @@ def validate_username(browser,
                       skip_business_percentage,
                       skip_business_categories,
                       dont_skip_business_categories,
-                      logger, type_of_account='all'):
+                      logger, type_of_account='all', gender='all'):
     """Check if we can interact with the user"""
 
     potency_ratio = False
@@ -186,6 +140,12 @@ def validate_username(browser,
                     if field == username:
                         logger.info('Username in BlackList: {} '.format(username))
                         return False, "---> {} is in blacklist  ~skipping user\n".format(username)
+
+    # If gender is not 'all' check what gender is
+    if gender != 'all':
+        user_data_json = json.loads(requests.get('https://genderapi.io/instagram/?q={}'.format(username)).text)
+        if user_data_json['gender'] != gender:
+            return False, "---> {}'s gender is not valid\n".format(username)
 
     """Checks the potential of target user by relationship status in order to delimit actions within the desired boundary"""
     if potency_ratio or delimit_by_numbers and (max_followers or max_following or min_followers or min_following):
@@ -675,9 +635,9 @@ def get_active_users(browser, username, posts, boundary, logger):
     except WebDriverException:
         try:
             total_posts = format_number(browser.find_elements_by_xpath(
-                "//span[contains(@class,'g47SY')]")[0].text)
+                "//span[contains(@class,'g47SY')]"))
             if total_posts: #prevent an empty string scenario
-                total_posts = format_number(total_posts)
+                total_posts = format_number(total_posts[0].text)
             else:
                 logger.info("Failed to get posts count on your profile!  ~empty string")
                 total_posts = None
@@ -1591,7 +1551,7 @@ def get_username_from_id(browser, user_id, logger):
             post_page = "https://www.instagram.com/p/{}".format(post_code)
 
             web_address_navigator(browser, post_page)
-            username = get_username(browser, "post", logger)
+            username = get_username(browser, logger)
             if username:
                 return username
 
@@ -1712,3 +1672,72 @@ def get_proxy():
     string = open('proxy.txt').readline()[:-1]
 
     return string
+
+def progress_tracker(current_value, highest_value, initial_time, logger):
+    """ Provide a progress tracker to keep value updated until finishes """
+    if (current_value is None or
+        highest_value is None or
+            highest_value == 0):
+        return
+
+    try:
+        real_time = time.time()
+        progress_percent = int((current_value / highest_value) * 100)
+        show_logs = Settings.show_logs
+
+        elapsed_time = real_time - initial_time
+        elapsed_formatted = truncate_float(elapsed_time, 2)
+        elapsed = ("{} seconds".format(
+            elapsed_formatted) if elapsed_formatted < 60 else
+                   "{} minutes".format(
+                       truncate_float(elapsed_formatted / 60, 2)))
+
+        eta_time = abs((elapsed_time * 100) / (
+            progress_percent if progress_percent != 0 else 1) - elapsed_time)
+        eta_formatted = truncate_float(eta_time, 2)
+        eta = ("{} seconds".format(eta_formatted) if eta_formatted < 60 else
+               "{} minutes".format(truncate_float(eta_formatted / 60, 2)))
+
+        tracker_line = "-----------------------------------"
+        filled_index = int(progress_percent / 2.77)
+        progress_container = (
+            "["
+            + tracker_line[:filled_index]
+            + "+"
+            + tracker_line[filled_index:]
+            + "]"
+        )
+        progress_container = (
+            progress_container[:filled_index + 1].replace("-", "=")
+            + progress_container[filled_index + 1:]
+        )
+
+        total_message = ("\r  {}/{} {}  {}%    "
+                         "|> Elapsed: {}    "
+                         "|> ETA: {}      "
+                         .format(current_value, highest_value,
+                                 progress_container, progress_percent,
+                                 elapsed, eta))
+
+        if show_logs is True:
+            sys.stdout.write(total_message)
+            sys.stdout.flush()
+
+    except Exception as exc:
+        if not logger:
+            logger = Settings.logger
+
+        logger.info("Error occurred with Progress Tracker:\n{}".format(
+            str(exc).encode("utf-8")))
+
+
+def close_dialog_box(browser):
+    """ Click on the close button spec. in the 'Likes' dialog box """
+
+    try:
+        close = browser.find_element_by_xpath(
+            Selectors.likes_dialog_close_xpath)
+        click_element(browser, close)
+
+    except NoSuchElementException as exc:
+        pass

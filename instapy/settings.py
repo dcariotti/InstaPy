@@ -8,7 +8,7 @@ OS_ENV = "windows" if p_os == "win32" else "osx" if p_os == "darwin" else "linux
 from pymongo import MongoClient
 
 # MongoDB
-client = MongoClient('mongodb://{}:{}@localhost:27017/igbooster'.format('igb_admin', 'password'))
+client = MongoClient('mongodb://{}:{}@localhost:27017/igbooster'.format('igb_admin', 'pass123'))
 mongo = client.igbooster
 
 class Settings:
@@ -28,6 +28,7 @@ class Settings:
     # set a logger cache outside the InstaPy object to avoid re-instantiation issues
     loggers = {}
     logger = None
+    is_debug = True
 
     # set current profile credentials for DB operations
     profile = {"id": None, "name": None}
@@ -48,8 +49,13 @@ class Settings:
     # store the parameter for global access
     show_logs = None
 
+    user_agent = (
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+        '(KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36'
+    )
 
 class Storage:
     """ Globally accessible standalone storage """
     # store realtime record activity data
     record_activity = {}
+

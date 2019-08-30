@@ -6,6 +6,7 @@ from contextlib import contextmanager
 import re
 from math import ceil
 import os
+from sys import platform
 from platform import python_version
 from datetime import datetime
 import random
@@ -44,6 +45,7 @@ from .util import highlight_print
 from .util import dump_record_activity
 from .util import truncate_float
 from .util import get_proxy
+from .story_util import watch_story, watch_user_story
 from .unfollow_util import get_given_user_followers
 from .unfollow_util import get_given_user_following
 from .unfollow_util import unfollow
@@ -63,9 +65,6 @@ from .relationship_tools import get_nonfollowers
 from .relationship_tools import get_fans
 from .relationship_tools import get_mutual_following
 from .database_engine import get_database
-
-# InstagramAPI
-from InstagramAPI import InstagramAPI
 
 class InstaPyError(Exception):
     """General error for InstaPy exceptions"""
@@ -87,7 +86,7 @@ class InstaPy:
                  proxy_address=None,
                  proxy_chrome_extension=None,
                  proxy_port=0,
-                 bypass_suspicious_attempt=True,
+                 bypass_suspicious_attempt=False,
                  multi_logs=False,
                  settings=None,
                  igbooster=True):
@@ -140,9 +139,14 @@ class InstaPy:
         self.unfollowNumber = 0
         self.not_valid_users = 0
 
+        self.stories_watched = 0
+        self.reels_watched = 0
+
         self.mandatory_language = False
         self.mandatory_character = []
         self.check_letters = {}
+
+        self.quotient_breach = False
 
         self.jumps = {"consequent": {"likes": 0, "comments": 0, "follows": 0, "unfollows": 0},
                       "limit": {"likes": 7, "comments": 3, "follows": 5, "unfollows": 4}}
@@ -156,6 +160,14 @@ class InstaPy:
         self.automatedFollowedPool = {"all":[], "eligible":[]}
         self.do_like = False
         self.like_percentage = 0
+
+        if settings.get('stories', False):
+            self.do_story = True
+            self.story_percentage = 100
+        else:
+            self.do_story = False
+            self.story_percentage = 0
+        self.story_simulate = False
         self.smart_hashtags = []
 
         self.dont_like = ['sex', 'nsfw']
@@ -177,14 +189,19 @@ class InstaPy:
         self.delimit_by_numbers = True
 
         #self.max_followers = 2500
-        self.max_following = 4000
+        #self.max_following = 4000
         self.min_followers = 50
         self.min_following = 50
 
         try:
-            self.max_followers = settings['max_followers']
+            self.max_followers = int(settings['max_followers'])
         except Exception:
             self.max_followers = 2500
+
+        try:
+            self.max_following = int(settings['max_following'])
+        except Exception:
+            self.max_following = 4000
 
         self.delimit_liking = False
         self.liking_approved = True
@@ -220,9 +237,6 @@ class InstaPy:
         # Assign logger
         self.log_user = ('instapy_user_%s' % self.username)
         self.logger = self.get_instapy_logger(show_logs)
-        self.ig_api = InstagramAPI(self.username, self.password)
-        self.ig_api.setProxy(get_proxy())
-        self.ig_api.login()
         self.path_for_igbooster = self.username
 
         if self.selenium_local_session == True:
@@ -246,7 +260,11 @@ class InstaPy:
             extra = {"username": self.username}
             logger_formatter = logging.Formatter('%(levelname)s [%(asctime)s] [%(username)s]  %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
             file_handler.setFormatter(logger_formatter)
-            logger.addHandler(file_handler)
+
+            if Settings.is_debug:
+                logger.addHandler(logging.StreamHandler())
+            else:
+                logger.addHandler(file_handler)
 
             if show_logs == True:
                 console_handler = logging.StreamHandler()
@@ -293,36 +311,39 @@ class InstaPy:
         else:
             chromedriver_location = Settings.chromedriver_location
             chrome_options = Options()
-            #chrome_options.add_argument("--disable-infobars")
-            chrome_options.add_argument("--mute-audio")
+            chrome_options.add_argument('--mute-audio')
             chrome_options.add_argument('--dns-prefetch-disable')
-            #chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--lang=en-US')
             chrome_options.add_argument('--disable-setuid-sandbox')
 
-            # this option implements Chrome Headless, a new (late 2017)
-            # GUI-less browser. chromedriver 2.9 and above required
             if self.headless_browser:
                 chrome_options.add_argument('--headless')
-                # Replaces browser User Agent from "HeadlessChrome".
+                chrome_options.add_argument('--no-sandbox')
+
+                #if disable_image_load:
+                #    chrome_options.add_argument(
+                #        '--blink-settings=imagesEnabled=false')
+
                 user_agent = "Chrome"
                 chrome_options.add_argument('user-agent={user_agent}'
-                                            .format(user_agent=user_agent))
+                                        .format(user_agent=user_agent))
+
             capabilities = DesiredCapabilities.CHROME
             # Proxy for chrome
-            if self.proxy_address and self.proxy_port > 0:
-                prox = Proxy()
-                proxy = ":".join([self.proxy_address, str(self.proxy_port)])
-                prox.proxy_type = ProxyType.MANUAL
-                prox.http_proxy = proxy
-                prox.socks_proxy = proxy
-                prox.ssl_proxy = proxy
-                prox.add_to_capabilities(capabilities)
-
-            # add proxy extension
-            if self.proxy_chrome_extension and not self.headless_browser:
-                chrome_options.add_extension(self.proxy_chrome_extension)
-
+            # platform is part of sys lib. This condition is used because Mac OS sucks in this lib
+            if platform != 'darwin':
+                if self.proxy_address and self.proxy_port > 0:
+                    prox = Proxy()
+                    proxy = ":".join([self.proxy_address, str(self.proxy_port)])
+                    prox.proxy_type = ProxyType.MANUAL
+                    prox.http_proxy = proxy
+                    prox.socks_proxy = proxy
+                    prox.ssl_proxy = proxy
+                    prox.add_to_capabilities(capabilities)
+                # add proxy extension
+                if self.proxy_chrome_extension and not self.headless_browser:
+                    chrome_options.add_extension(self.proxy_chrome_extension)
+            
             if self.browser_profile_path is not None:
                 chrome_options.add_argument('user-data-dir={}'.format(self.browser_profile_path))
 
@@ -396,14 +417,6 @@ class InstaPy:
         self.following_num = log_following_num(self.browser, self.username, self.logfolder)
 
         
-        ii = 0
-        while ii < 3 and not self.ig_api.isLoggedIn:
-            sleep(1)
-            self.ig_api.login()
-
-        if not self.ig_api.isLoggedIn:
-            self.logger.error('NO Login')            
-            self.aborting = True
 
         if self.aborting:
             self.end()
@@ -612,7 +625,7 @@ class InstaPy:
         return self
 
 
-    def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=300, interact=False, type_of_account='all'):
+    def follow_commenters(self, usernames, amount=10, daysold=365, max_pic=50, sleep_delay=300, interact=False, type_of_account='all', gender='all'):
         """ Follows users' commenters """
 
         if self.aborting:
@@ -717,7 +730,7 @@ class InstaPy:
         return self
 
 
-    def follow_likers (self, usernames, urls=None, type_of_account='all', amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=300, interact=False):
+    def follow_likers (self, usernames, urls=None, type_of_account='all', gender='all', amount=10, photos_grab_amount=3, follow_likers_per_photo=3, randomize=True, sleep_delay=300, interact=False):
         """ Follows users from urls """
         if urls:
             if not isinstance(urls, list):
@@ -790,7 +803,7 @@ class InstaPy:
                         followed = self.follow_by_list(liker,
                                                        self.follow_times,
                                                        sleep_delay,
-                                                       interact, type_of_account)
+                                                       interact, type_of_account, gender)
                     if followed > 0:
                         followed_all += 1
                         followed_new += 1
@@ -836,7 +849,7 @@ class InstaPy:
 
         return self
 
-    def follow_by_list(self, followlist, times=1, sleep_delay=300, interact=False, type_of_account='all', from_u=''):
+    def follow_by_list(self, followlist, times=1, sleep_delay=300, interact=False, type_of_account='all', gender='all', from_u=''):
         """Allows to follow by any scrapped list"""
         if not isinstance(followlist, list):
             followlist = [followlist]
@@ -882,7 +895,7 @@ class InstaPy:
 
             if not users_validated:
                 # Verify if the user should be followed
-                validation, details = self.validate_user_call(acc_to_follow, type_of_account)
+                validation, details = self.validate_user_call(acc_to_follow, type_of_account, gender)
                 if validation != True or acc_to_follow == self.username:
                     self.logger.info("--> Not a valid user: {}".format(details))
                     not_valid_users += 1
@@ -1036,7 +1049,7 @@ class InstaPy:
                           tags2=None,
                           amount=50,
                           media=None,
-                          skip_top_posts=True, type_of_account='all'):
+                          skip_top_posts=True, type_of_account='all', gender='all'):
         """Likes (default) 50 images per given locations"""
         if self.aborting:
             return self
@@ -1135,7 +1148,7 @@ class InstaPy:
 
                     if not inappropriate and self.liking_approved:
                         #validate user
-                        validation, details = self.validate_user_call(user_name, type_of_account)
+                        validation, details = self.validate_user_call(user_name, type_of_account, gender)
                         if validation != True:
                             self.logger.info("--> Not a valid user: {}".format(details))
                             not_valid_users += 1
@@ -1260,7 +1273,7 @@ class InstaPy:
                       locations=None,
                       amount=50,
                       media=None,
-                      skip_top_posts=True, type_of_account='all'):
+                      skip_top_posts=True, type_of_account='all', gender='all'):
         """Likes (default) 50 images per given locations"""
         if self.aborting:
             return self
@@ -1309,7 +1322,7 @@ class InstaPy:
 
                     if not inappropriate:
                         #validate user
-                        validation, details = self.validate_user_call(user_name, type_of_account)
+                        validation, details = self.validate_user_call(user_name, type_of_account, gender)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -1430,7 +1443,7 @@ class InstaPy:
                      use_smart_hashtags=False,
                      interact=False,
                      randomize=False,
-                     media=None, type_of_account='all'):
+                     media=None, is_combo=False, type_of_account='all', gender='all'):
         """Likes (default) 50 images per given tag"""
         if self.aborting:
             return self
@@ -1606,7 +1619,7 @@ class InstaPy:
 
                     if not inappropriate and self.liking_approved:
                         #validate user
-                        validation, details = self.validate_user_call(user_name, type_of_account)
+                        validation, details = self.validate_user_call(user_name, type_of_account, gender)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -1615,15 +1628,19 @@ class InstaPy:
                             web_address_navigator(self.browser, link)
 
                         #try to like
-                        liked = like_image(self.igbooster, self.path_for_igbooster,
+                        liking = random.randint(0, 100) <= self.like_percentage
+                        if self.do_like and liking:
+                            liked = like_image(self.igbooster, self.path_for_igbooster,
                                         link,
                                         self.browser,
                                            user_name,
                                            self.blacklist,
                                            self.logger,
                                            self.logfolder, tag=tag)
+                        else:
+                            liked = False
 
-                        if liked:
+                        if liked or is_combo:
 
                             if interact:
                                 username = (self.browser.
@@ -1746,7 +1763,80 @@ class InstaPy:
 
         return self
 
-    def like_by_users(self, usernames, amount=10, randomize=False, media=None, type_of_account='all'):
+    def set_do_story(self, enabled = False, percentage = 0, simulate = False):
+        """
+            configure stories
+            enabled: to add story to interact
+            percentage: how much to watch
+            simulate: if True, we will simulate watching (faster),
+                      but nothing will be seen on the browser window
+        """
+        if self.aborting:
+            return self
+
+        self.do_story = enabled
+        self.story_percentage = min(percentage,100)
+        self.story_simulate = simulate
+
+        return self
+
+    def story_by_users(self, users = None):
+        """ Watch stories for specific user(s)"""
+        if self.aborting:
+            return self
+
+        if users is None:
+            self.logger.info("No users passed to story_by_users")
+        else:
+            # iterate over available users
+            for index, user in enumerate(users):
+                # Quota Supervisor peak check
+                if self.quotient_breach:
+                    break
+
+                # inform user whats happening
+                if len(users) > 1:
+                    self.logger.info('User [{}/{}]'.format(index + 1, len(users)))
+                self.logger.info('Loading stories with User --> {}'.format(user.encode('utf-8')))
+
+                try:
+                    reels = watch_story(self.browser, user, self.logger, "user", self.story_simulate)
+                except NoSuchElementException:
+                    self.logger.info('No stories skipping this user')
+                    continue
+                if reels > 0:
+                    self.stories_watched += 1
+                    self.reels_watched += reels
+
+    def story_by_tags(self, tags=None):
+        """ Watch stories for specific tag(s) """
+        if self.aborting:
+            return self
+
+        if tags is None:
+            self.logger.info("No Tags set")
+        else:
+            # iterate over available tags
+            for index, tag in enumerate(tags):
+                # Quota Supervisor peak check
+                if self.quotient_breach:
+                    break
+
+                # inform user whats happening
+                if len(tags) > 1:
+                    self.logger.info('Tag [{}/{}]'.format(index + 1, len(tags)))
+                self.logger.info('Loading stories with Tag --> {}'.format(tag.encode('utf-8')))
+
+                try:
+                    reels = watch_story(self.browser, tag, self.logger, "tag", self.story_simulate)
+                except NoSuchElementException:
+                    self.logger.info('No stories skipping this tag')
+                    continue
+                if reels > 0:
+                    self.stories_watched += 1
+                    self.reels_watched += reels
+
+    def like_by_users(self, usernames, amount=10, randomize=False, media=None, type_of_account='all', gender='all'):
         """Likes some amounts of images for each usernames"""
         if self.aborting:
             return self
@@ -1767,7 +1857,7 @@ class InstaPy:
             self.logger.info('--> {}'.format(username.encode('utf-8')))
             following = random.randint(0, 100) <= self.follow_percentage
 
-            validation, details = self.validate_user_call(username, type_of_account)
+            validation, details = self.validate_user_call(username, type_of_account, gender)
             if not validation:
                 self.logger.info("--> not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -1936,7 +2026,7 @@ class InstaPy:
                           usernames,
                           amount=10,
                           randomize=False,
-                          media=None, type_of_account='all'):
+                          media=None, type_of_account='all', gender='all'):
         """Likes some amounts of images for each usernames"""
         if self.aborting:
             return self
@@ -1956,7 +2046,7 @@ class InstaPy:
                 'Username [{}/{}]'.format(index + 1, len(usernames)))
             self.logger.info('--> {}'.format(username.encode('utf-8')))
 
-            validation, details = self.validate_user_call(username, type_of_account)
+            validation, details = self.validate_user_call(username, type_of_account, gender)
             if not validation:
                 self.logger.info("--> not a valid user: {}".format(details))
                 not_valid_users += 1
@@ -2152,7 +2242,7 @@ class InstaPy:
 
         return self
 
-    def interact_user_followers(self, usernames, amount=10, randomize=False, type_of_account='all'):
+    def interact_user_followers(self, usernames, amount=10, randomize=False, type_of_account='all', gender='all'):
 
         if self.aborting:
             return self
@@ -2212,7 +2302,7 @@ class InstaPy:
                 self.logger.info("User '{}' [{}/{}]".format((person), index+1, len(person_list)))
 
                 if person in simulated_list:
-                    validation, details = self.validate_user_call(person, type_of_account)
+                    validation, details = self.validate_user_call(person, type_of_account, gender)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2258,7 +2348,7 @@ class InstaPy:
         return self
 
 
-    def interact_user_following(self, usernames, amount=10, randomize=False, type_of_account='all'):
+    def interact_user_following(self, usernames, amount=10, randomize=False, type_of_account='all', gender='all'):
 
         if self.aborting:
             return self
@@ -2320,7 +2410,7 @@ class InstaPy:
                 self.logger.info("User '{}' [{}/{}]".format((person), index+1, len(person_list)))
 
                 if person in simulated_list:
-                    validation, details = self.validate_user_call(person, type_of_account)
+                    validation, details = self.validate_user_call(person, type_of_account, gender)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
@@ -2366,7 +2456,7 @@ class InstaPy:
 
         return self
 
-    def validate_user_call(self, user_name, type_of_account):
+    def validate_user_call(self, user_name, type_of_account, gender):
         """Call the validate_username() function"""
         validation, details = validate_username(self.browser,
                                                 user_name,
@@ -2389,7 +2479,11 @@ class InstaPy:
                                                 self.skip_business_percentage,
                                                 self.skip_business_categories,
                                                 self.dont_skip_business_categories,
-                                                self.logger, type_of_account)
+                                                self.logger, type_of_account, gender)
+        # Story watch
+        if validation and watch_user_story(self.story_percentage, self.do_story):
+            self.story_by_users([user_name])
+
         return validation, details
 
     def follow_user_followers(self,
@@ -2397,7 +2491,7 @@ class InstaPy:
                               amount=10,
                               randomize=False,
                               interact=False,
-                              sleep_delay=300, type_of_account='all'):
+                              sleep_delay=300, type_of_account='all', gender='all'):
         """ Follow the `Followers` of given users """
 
         message = "Starting to follow user `Followers`.."
@@ -2476,7 +2570,7 @@ class InstaPy:
                             len(person_list),
                             person))
 
-                validation, details = self.validate_user_call(person, type_of_account)
+                validation, details = self.validate_user_call(person, type_of_account, gender)
                 if validation != True:
                     self.logger.info(details)
                     not_valid_users += 1
@@ -2567,7 +2661,7 @@ class InstaPy:
                               amount=10,
                               randomize=False,
                               interact=False,
-                              sleep_delay=300, type_of_account='all'):
+                              sleep_delay=300, type_of_account='all', gender='all'):
 
         """ Follow the `Following` of given users """
         if self.aborting:
@@ -2657,7 +2751,7 @@ class InstaPy:
                             len(person_list),
                             person))
 
-                validation, details = self.validate_user_call(person, type_of_account=type_of_account)
+                validation, details = self.validate_user_call(person, type_of_account, gender)
                 if validation != True:
                     self.logger.info(details)
                     not_valid_users += 1
@@ -2750,13 +2844,16 @@ class InstaPy:
                        InstapyFollowed=(False, "all"),
                        nonFollowers=False,
                        allFollowing=False,
+                       inactive=(False, 30),
                        style="FIFO",
                        unfollow_after=None,
-                       sleep_delay=300):
+                       sleep_delay=300,
+                       jump4xfollowing=False):
         """Unfollows (default) 10 users from your following list"""
 
         if self.aborting:
             return self
+
 
         message = "Starting to unfollow users.."
         highlight_print(self.username, message, "feature", "info", self.logger)
@@ -2775,13 +2872,15 @@ class InstaPy:
         try:
             unfollowNumber = unfollow(self.browser,
                                       self.username,
-                                      self.ig_api,
+                                      self.password,
                                       amount,
                                       customList,
                                       InstapyFollowed,
                                       nonFollowers,
                                       allFollowing,
+                                      inactive,
                                       style,
+                                      jump4xfollowing,
                                       self.automatedFollowedPool,
                                       self.relationship_data,
                                       self.dont_include,
@@ -2818,7 +2917,7 @@ class InstaPy:
                      amount=50,
                      randomize=False,
                      unfollow=False,
-                     interact=False, type_of_account='all'):
+                     interact=False, type_of_account='all', gender='all'):
         """Like the users feed"""
 
         if self.aborting:
@@ -2897,7 +2996,7 @@ class InstaPy:
 
                             if not inappropriate and self.liking_approved:
                                 #validate user
-                                validation, details = self.validate_user_call(user_name, type_of_account)
+                                validation, details = self.validate_user_call(user_name, type_of_account, gender)
                                 if validation != True:
                                     self.logger.info(details)
                                     not_valid_users += 1
@@ -3183,11 +3282,12 @@ class InstaPy:
         #get Nonfollowers
         nonfollowers = get_nonfollowers(self.browser,
                                          username,
+                                         self.password,
                                           self.relationship_data,
                                            live_match,
                                             store_locally,
                                              self.logger,
-                                              self.logfolder, self.password)
+                                              self.logfolder)
 
         return nonfollowers
 
@@ -3262,7 +3362,7 @@ class InstaPy:
                      skip_top_posts=True,
                      use_smart_hashtags=False,
                      randomize=False,
-                     media=None, type_of_account='all'):
+                     media=None, type_of_account='all', gender='all'):
         if self.aborting:
             return self
 
@@ -3328,7 +3428,7 @@ class InstaPy:
                     if not inappropriate:
                         # validate user
                         validation, details = self.validate_user_call(
-                            user_name, type_of_account)
+                            user_name, type_of_account, gender)
                         if validation != True:
                             self.logger.info(details)
                             not_valid_users += 1
@@ -3377,7 +3477,7 @@ class InstaPy:
     def interact_by_URL(self,
                          urls=[],
                           randomize=False,
-                           interact=False, type_of_account='all'):
+                           interact=False, type_of_account='all', gender='all'):
         """ Interact on posts at given URLs """
 
         if self.aborting:
@@ -3424,7 +3524,7 @@ class InstaPy:
 
                 if not inappropriate and self.liking_approved:
                     #validate user
-                    validation, details = self.validate_user_call(user_name, type_of_account)
+                    validation, details = self.validate_user_call(user_name, type_of_account, gender)
                     if validation != True:
                         self.logger.info(details)
                         not_valid_users += 1
